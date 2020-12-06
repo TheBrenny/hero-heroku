@@ -1,0 +1,225 @@
+{
+	"name": "hero-heroku",
+	"displayName": "Hero Heroku",
+	"description": "A powerful Heroku dashboard from within VSCode!",
+	"publisher": "TheBrenny",
+	"version": "0.0.1",
+	"engines": {
+		"vscode": "^1.51.0"
+	},
+	"categories": [
+		"Other"
+	],
+	"activationEvents": [
+		"onView:hero-heroku-container",
+		"onView:hero-heroku",
+		"onCommand:hero-heroku.authenticate"
+	],
+	"main": "./src/extension.js",
+	"contributes": {
+		"colors": [
+			{
+				"id": "heroheroku.dynoState.crashed",
+				"description": "A colour configuration for a crashed dyno state.",
+				"defaults": {
+					"light": "#f44336",
+					"dark": "#f44336",
+					"highContrast": "#f44336"
+				}
+			},
+			{
+				"id": "heroheroku.dynoState.down",
+				"description": "A colour configuration for a down dyno state.",
+				"defaults": {
+					"light": "#212121",
+					"dark": "#9e9e9e",
+					"highContrast": "#212121"
+				}
+			},
+			{
+				"id": "heroheroku.dynoState.idle",
+				"description": "A colour configuration for an idle dyno state.",
+				"defaults": {
+					"light": "#2196f3",
+					"dark": "#2196f3",
+					"highContrast": "#2196f3"
+				}
+			},
+			{
+				"id": "heroheroku.dynoState.starting",
+				"description": "A colour configuration for a starting dyno state.",
+				"defaults": {
+					"light": "#ffeb3b",
+					"dark": "#ffeb3b",
+					"highContrast": "#ffeb3b"
+				}
+			},
+			{
+				"id": "heroheroku.dynoState.up",
+				"description": "A colour configuration for an up dyno state.",
+				"defaults": {
+					"light": "#4caf50",
+					"dark": "#4caf50",
+					"highContrast": "#4caf50"
+				}
+			}
+		],
+		"configuration": {
+			"title": "Hero Heroku",
+			"properties": {
+				"hero-heroku.apiKey": {
+					"type": "string",
+					"description": "Get your Heroku API Key by running: heroku authorizations:create",
+					"title": "Heroku API Key"
+				},
+				"hero-heroku.apiCalls": {
+					"type": "number",
+					"default": 1,
+					"description": "The amount of times per minute the App Tree should refresh. Requires extension reload.",
+					"title": "Tree Refreshes Per Minute",
+					"maximum": 60
+				}
+			}
+		},
+		"viewsContainers": {
+			"activitybar": [
+				{
+					"id": "hero-heroku-container",
+					"title": "Hero Heroku",
+					"icon": "res/heroku-app-icon.svg"
+				}
+			]
+		},
+		"views": {
+			"hero-heroku-container": [
+				{
+					"id": "hero-heroku",
+					"name": "Hero Heroku"
+				}
+			]
+		},
+		"viewsWelcome": [
+			{
+				"view": "hero-heroku",
+				"contents": "You need to set your API Key in the settings first!\n[Click here to do that](command:hero-heroku.authenticate)",
+				"when": "!config.hero-heroku.apiKey"
+			},
+			{
+				"view": "hero-heroku",
+				"contents": "Hero Heroku is loading...",
+				"when": "config.hero-heroku.apiKey"
+			}
+		],
+		"commands": [
+			{
+				"command": "hero-heroku.authenticate",
+				"title": "Authenticate",
+				"category": "Heroku",
+				"icon": "$(key)"
+			},
+			{
+				"command": "hero-heroku.refreshAppTree",
+				"title": "Refresh App Tree",
+				"icon": "$(refresh)"
+			},
+			{
+				"command": "hero-heroku.app.openUrl",
+				"title": "Open App",
+				"icon": "$(link-external)"
+			},
+			{
+				"command": "hero-heroku.app.openDashboard",
+				"title": "Open Dashboard",
+				"icon": "$(dashboard)"
+			},
+			{
+				"command": "hero-heroku.dyno.create",
+				"title": "Create New Dyno",
+				"icon": "$(add)"
+			},
+			{
+				"command": "hero-heroku.dyno.scale",
+				"title": "Scale",
+				"icon": "$(symbol-class)"
+			},
+			{
+				"command": "hero-heroku.dyno.restart",
+				"title": "Retart",
+				"icon": "$(debug-restart)"
+			},
+			{
+				"command": "hero-heroku.dyno.stop",
+				"title": "Stop Dyno",
+				"icon": "$(debug-stop)"
+			}
+		],
+		"menus": {
+			"commandPalette": [],
+			"view/title": [
+				{
+					"command": "hero-heroku.refreshAppTree",
+					"when": "view == hero-heroku",
+					"group": "navigation"
+				}
+			],
+			"view/item/context": [
+				{
+					"command": "hero-heroku.app.openDashboard",
+					"when": "view == hero-heroku && viewItem == app",
+					"group": "inline@1"
+				},
+				{
+					"command": "hero-heroku.app.openUrl",
+					"when": "view == hero-heroku && viewItem == app",
+					"group": "inline@2"
+				},
+				{
+					"command": "hero-heroku.dyno.create",
+					"when": "view == hero-heroku && viewItem == dynoBranch",
+					"group": "inline@1"
+				},
+				{
+					"command": "hero-heroku.dyno.scale",
+					"when": "view == hero-heroku && viewItem == dynoBranch",
+					"group": "inline@3"
+				},
+				{
+					"command": "hero-heroku.dyno.restart",
+					"when": "view == hero-heroku && viewItem == dynoBranch",
+					"group": "inline@2"
+				},
+				{
+					"command": "hero-heroku.dyno.restart",
+					"when": "view == hero-heroku && viewItem == dynoUp",
+					"group": "inline@1"
+				},
+				{
+					"command": "hero-heroku.dyno.stop",
+					"when": "view == hero-heroku && viewItem == dynoUp",
+					"group": "inline@2"
+				}
+			]
+		}
+	},
+	"scripts": {
+		"lint": "eslint .",
+		"pretest": "npm run lint",
+		"test": "node ./test/runTest.js"
+	},
+	"devDependencies": {
+		"@hediet/node-reload": "^0.7.3",
+		"@hediet/std": "^0.6.0",
+		"@types/glob": "^7.1.3",
+		"@types/mocha": "^8.0.0",
+		"@types/node": "^12.11.7",
+		"@types/vscode": "^1.51.0",
+		"eslint": "^7.9.0",
+		"glob": "^7.1.6",
+		"mocha": "^8.1.3",
+		"typescript": "^4.0.2",
+		"vscode-test": "^1.4.0"
+	},
+	"dependencies": {
+		"heroku-client": "^3.1.0"
+	}
+}
