@@ -2,8 +2,12 @@
 	"name": "hero-heroku",
 	"displayName": "Hero Heroku",
 	"description": "A powerful Heroku dashboard from within VSCode!",
-	"publisher": "TheBrenny",
-	"version": "0.0.1",
+	"publisher": "JustBrenny",
+	"version": "1.0.0",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/TheBrenny/hero-heroku.git"
+	},
 	"engines": {
 		"vscode": "^1.51.0"
 	},

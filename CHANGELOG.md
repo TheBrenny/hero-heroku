@@ -2,8 +2,10 @@
 
 All notable changes to the "hero-heroku" extension will be documented in this file.
 
-Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
-
 ## [Unreleased]
+
+- ...
+
+## [1.0.0] - 07 Dec 2020
 
 - Initial release
