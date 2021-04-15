@@ -15,16 +15,14 @@ class HerokuTreeProvider {
     }
 
     async getTreeItem(element) {
-        if (element instanceof App) return (await this.getAppTree([element]))[0];
         return element;
     }
-    getParent(element) {
+    async getParent(element) {
         return element.parent;
     }
-    getChildren(element) {
-        if (!element) {
-            return Heroku.get("/apps").then(a => this.getAppTree(a));
-        }
+
+    async getChildren(element) {
+        if (!element) return await this.getRootItems();
 
         if (element instanceof App) {
             return [
@@ -42,38 +40,60 @@ class HerokuTreeProvider {
             ];
         }
 
-        if (element instanceof GenericItem && element.contextValue === "dynoBranch") {
-            return this.getDynoTree(element.parent);
+        if (element instanceof Pipeline) {
+            let stageKeys = Object.keys(element.stages);
+            return stageKeys.map(stage => {
+                return new PipelineStage(stage, {
+                    parent: element,
+                    apps: element.stages[stage],
+                });
+            });
+        }
+        if (element instanceof PipelineStage) {
+            return element.apps;
+        }
+
+        if (element instanceof GenericItem) {
+            if (element.contextValue === "dynoBranch") {
+                return this.getDynoTree(element.parent);
+            }
         }
     }
 
-    getAppTree(apps) {
-        return new Promise(async (resolve, _reject) => {
-            let proms = [];
+    async getRootItems() {
+        let apps = (await Heroku.get("/apps"));
+        apps = apps.map(a => this.getApp(a));
+        apps = await Promise.all(apps);
 
-            apps.forEach(app => {
-                app.state = "down";
+        let pipelines = await Heroku.get("/pipelines");
+        pipelines = pipelines.map(pipe => this.getPipeline(pipe, apps));
+        pipelines = await Promise.all(pipelines);
 
-                let p = Heroku.get("/apps/" + app.name + "/dynos").then(dynos => {
-                    let state = 4;
-
-                    for (let i = 0; i < dynos.length && state > 0; i++) {
-                        const dyState = dynoStates.indexOf(dynos[i].state);
-                        if (dyState < state) state = dyState;
-                    }
-                    app.state = dynoStates[state];
-
-                    app.dynos = dynos;
-                });
-                proms.push(p);
-            });
-
-            await Promise.all(proms);
-            resolve(apps.map(app => new App(app)));
-        });
+        return [...apps, ...pipelines];
     }
 
-    getDynoTree(app) {
+    async getApp(app) {
+        let dynos = await Heroku.get("/apps/" + app.id + "/dynos");
+        app.dynos = dynos;
+        return new App(app);
+    }
+
+    async getPipeline(pipeline, allApps) {
+        pipeline.stages = {};
+        let couplings = await Heroku.get("/pipelines/" + pipeline.id + "/pipeline-couplings");
+
+        couplings.forEach(coupling => {
+            let appIndex = allApps.findIndex(app => app.appID === coupling.app.id);
+            if (appIndex === -1) return;
+            let a = allApps.splice(appIndex, 1)[0]; // returns an App object
+            pipeline.stages[coupling.stage] = pipeline.stages[coupling.stage] || []; // make sure we have an array
+            pipeline.stages[coupling.stage].push(a);
+        });
+
+        return new Pipeline(pipeline);
+    }
+
+    async getDynoTree(app) {
         let dynos = app.dynos.map(d => new Dyno(d, {
             parent: app
         }));
@@ -91,6 +111,7 @@ class GenericItem extends vscode.TreeItem {
         this.tooltip = opts.tooltip;
         this.collapsibleState = opts.collapsibleState !== undefined ? opts.collapsibleState : vscode.TreeItemCollapsibleState;
         this.iconPath = opts.iconPath;
+        this.extra = opts.extra;
     }
 }
 
@@ -99,10 +120,11 @@ class App extends vscode.TreeItem {
         super(app.name);
         opts = opts || {};
         this.label = this.name = app.name;
+        this.appID = app.id;
         this.parent = null;
         this.contextValue = "app";
         this.web_url = app.web_url;
-        this.state = app.state;
+        this.state = getBestState(app.dynos);
         this.dynos = app.dynos;
         this.tooltip = `State: ${this.state}`;
         this.collapsibleState = opts.collapsibleState || vscode.TreeItemCollapsibleState.Collapsed;
@@ -111,6 +133,50 @@ class App extends vscode.TreeItem {
 
     static getIconPath(dynoState) {
         return path.join(__dirname, "..", "res", "dyno_states", "heroku-dyno-" + dynoState + ".svg");
+    }
+}
+
+class Pipeline extends vscode.TreeItem {
+    constructor(pipeline, opts) {
+        super(pipeline.name);
+        opts = opts || {};
+        this.label = this.name = pipeline.name;
+        this.parent = opts.parent || null;
+        let allApps = Object.values(pipeline.stages).reduce((a, c) => a = a.concat(c), []);
+        this.state = getBestState(allApps);
+        this.stages = pipeline.stages;
+        this.contextValue = "pipeline";
+        this.tooltip = allApps.length + " app" + (allApps.length !== 1 ? "s" : "");
+        this.collapsibleState = opts.collapsibleState || vscode.TreeItemCollapsibleState.Collapsed;
+        this.iconPath = new vscode.ThemeIcon("server", new vscode.ThemeColor("heroheroku.dynoState." + this.state));
+    }
+}
+
+class PipelineStage extends vscode.TreeItem {
+    constructor(stage, opts) {
+        super(stage);
+        opts = opts || {};
+        this.label = this.name = (stage.substr(0, 1).toUpperCase() + stage.substr(1).toLowerCase());
+        this.parent = opts.parent || null;
+        this.contextValue = "stage";
+        this.tooltip = opts.apps.length + " app" + (opts.apps.length !== 1 ? "s" : "");
+        this.apps = opts.apps;
+        this.collapsibleState = opts.collapsibleState || vscode.TreeItemCollapsibleState.Collapsed;
+        this.state = getBestState(opts.apps);
+        this.iconPath = PipelineStage.getStageImage(stage, this.state);
+    }
+
+    static getStageImage(stage, state) {
+        let colour = new vscode.ThemeColor("heroheroku.dynoState." + state);
+        let icon = "cloud";
+
+        if (stage === "test") icon = "beaker";
+        else if (stage === "review") icon = "checklist";
+        else if (stage === "development") icon = "tools";
+        else if (stage === "staging") icon = "cloud-upload";
+        else if (stage === "production") icon = "cloud";
+
+        return new vscode.ThemeIcon(icon, colour);
     }
 }
 
@@ -130,6 +196,15 @@ class Dyno extends vscode.TreeItem {
     static stateColorLookup(dynoState) {
         return "heroheroku.dynoState." + dynoState;
     }
+}
+
+function getBestState(statefulArr) {
+    let state = 4;
+    for (let i = 0; i < statefulArr.length && state > 0; i++) {
+        const dyState = dynoStates.indexOf(statefulArr[i].state);
+        if (dyState < state) state = dyState;
+    }
+    return dynoStates[state];
 }
 
 module.exports = {
