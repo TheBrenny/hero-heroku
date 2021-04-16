@@ -10,7 +10,9 @@
 			"type": "extensionHost",
 			"request": "launch",
 			"args": [
-				"--extensionDevelopmentPath=${workspaceFolder}"
+				"--extensionDevelopmentPath=${workspaceFolder}",
+				"--extensions-dir=${workspaceFolder}/.vscode-profile/extensions/",
+				"--user-data-dir=${workspaceFolder}/.vscode-profile/profile/"
 			],
 			"env": {
 				"NODE_ENV": "development"
@@ -22,7 +24,9 @@
 			"request": "launch",
 			"args": [
 				"--extensionDevelopmentPath=${workspaceFolder}",
-				"--extensionTestsPath=${workspaceFolder}/test/suite/index"
+				"--extensionTestsPath=${workspaceFolder}/test/suite/index",
+				"--extensions-dir=${workspaceFolder}/.vscode-profile/extensions/",
+				"--user-data-dir=${workspaceFolder}/.vscode-profile/profile/"
 			],
 			"env": {
 				"NODE_ENV": "test"
