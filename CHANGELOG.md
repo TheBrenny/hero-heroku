@@ -1,11 +1,3 @@
 # Change Log
 
-All notable changes to the "hero-heroku" extension will be documented in this file.
-
-## [Unreleased]
-
-- ...
-
-## [1.0.0] - 07 Dec 2020
-
-- Initial release
+All notable changes to the `hero-heroku` extension will be documented on the [releases](https://github.com/thebrenny/hero-heroku/releases) page!
