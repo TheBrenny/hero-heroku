@@ -2,6 +2,8 @@ const vscode = require('vscode');
 const Heroku = require("./heroku");
 const promisify = require("util").promisify;
 const exec = promisify(require('child_process').exec);
+// const logger = console.log;
+const logger = require("./logger");
 const {
     Dyno,
     HerokuTreeProvider
@@ -13,6 +15,7 @@ const {
 } = require('./promutil');
 
 function authenticate() {
+    logger("Creating authorization");
     return exec("heroku authorizations:create -S -d \"Hero Heroku VSCode Extension\"")
         .then((std) => {
             const stderr = std.stderr;
@@ -23,9 +26,11 @@ function authenticate() {
             };
             return stdout.trim();
         }).then(token => {
+            logger("Authorization token recieved");
             let config = vscode.workspace.getConfiguration("hero-heroku");
             return config.update("apiKey", token, true);
         }).then(() => {
+            logger("Restarting Hero Heroku");
             Heroku.destroy();
             new Heroku();
             vscode.commands.executeCommand("hero-heroku.refreshAppTree");
@@ -35,10 +40,12 @@ function authenticate() {
 }
 
 function refreshTreeView(tdp) {
+    logger("Refreshing app tree");
     return tdp.refresh();
 }
 
 function openAppUrl(tdp, app) {
+    logger("Opening external app url");
     return vscode.env.openExternal(app.web_url)
         .then(success => {
             if (!success) throw {
@@ -61,20 +68,23 @@ function openAppUrl(tdp, app) {
         .then(t => (console.log(t), t))
         .then((target) => refreshBranch(tdp, target))
         .catch(error => {
-            if (error.name === "HH-UserChoice") console.error(error.message);
+            if (error.name === "HH-UserChoice") logger(error.message);
             else throw error;
         });
 }
 
 function openAppDashboard(_tdp, app) {
+    logger("Opening app dashboard");
     return vscode.env.openExternal("https://dashboard.heroku.com/apps/" + app.name);
 }
 
 function refreshBranch(tdp, app) {
+    logger("Refreshing TDP branch");
     return tdp.refresh(app);
 }
 
 function createDyno(tdp, dyno) {
+    logger("Creating dyno");
     return vscode.window.showInputBox({
         ignoreFocusOut: true,
         password: false,
@@ -89,9 +99,10 @@ function createDyno(tdp, dyno) {
             command: cmd
         });
     }).then(() => {
+        logger("Creating done");
         refreshBranch(tdp, dyno.parent);
     }).catch(err => {
-        if (err.name === "HH-UserChoice") console.error(err.message);
+        if (err.name === "HH-UserChoice") logger(err.message);
         else throw err;
     });
 }
@@ -103,6 +114,7 @@ function scaleDyno(tdp, dyno) {
     let formQty;
     let remainder = 0;
 
+    logger("Scaling dyno");
     Heroku.get("/apps/" + dyno.parent.name + "/formation")
         .then(fList => fList.map(f => {
             remainder += f.quantity;
@@ -156,18 +168,22 @@ function scaleDyno(tdp, dyno) {
                 quantity: formQty
             });
         }).then(() => {
+            logger("Scaling done");
             refreshBranch(tdp, dyno.parent);
         }).catch(err => {
-            if (err.name === "HH-UserChoice") console.error(err.message);
+            if (err.name === "HH-UserChoice") logger(err.message);
+            throw err;
         });
 }
 
 function restartDyno(tdp, dyno) {
     let endpoint = `/apps/${dyno.parent.name}/dynos${dyno.name}`;
+    logger("Restarting dyno");
     Heroku.delete(endpoint).then(() => refreshBranch(tdp, dyno.parent));
 }
 
 function stopDyno(tdp, dyno) {
+    logger("Stopping dyno");
     Heroku.post(`/apps/${dyno.parent.name}/dynos/${dyno.name}/actions/stop`).then(() => refreshBranch(tdp, dyno.parent));
 }
 
