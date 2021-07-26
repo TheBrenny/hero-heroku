@@ -51,6 +51,7 @@ function activate(context) {
 	context.subscriptions.push(vscode.commands.registerCommand("hero-heroku.dyno.scale", commands.dyno.scale.bind(this, tdp)));
 	context.subscriptions.push(vscode.commands.registerCommand("hero-heroku.dyno.restart", commands.dyno.restart.bind(this, tdp)));
 	context.subscriptions.push(vscode.commands.registerCommand("hero-heroku.dyno.stop", commands.dyno.stop.bind(this, tdp)));
+	context.subscriptions.push(vscode.commands.registerCommand("hero-heroku.dyno.logs", commands.dyno.logs.bind(this, tdp)));
 
 	logger("Activated");
 }

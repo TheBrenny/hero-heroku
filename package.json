@@ -155,6 +155,11 @@
 				"command": "hero-heroku.dyno.stop",
 				"title": "Stop Dyno",
 				"icon": "$(debug-stop)"
+			},
+			{
+				"command": "hero-heroku.dyno.logs",
+				"title": "Logs",
+				"icon": "$(output)"
 			}
 		],
 		"menus": {
@@ -183,24 +188,29 @@
 					"group": "inline@1"
 				},
 				{
+					"command": "hero-heroku.dyno.restart",
+					"when": "view == hero-heroku && viewItem == dynoBranch",
+					"group": "inline@2"
+				},
+				{
 					"command": "hero-heroku.dyno.scale",
 					"when": "view == hero-heroku && viewItem == dynoBranch",
 					"group": "inline@3"
 				},
 				{
 					"command": "hero-heroku.dyno.restart",
-					"when": "view == hero-heroku && viewItem == dynoBranch",
-					"group": "inline@2"
-				},
-				{
-					"command": "hero-heroku.dyno.restart",
-					"when": "view == hero-heroku && viewItem == dynoUp",
+					"when": "view == hero-heroku && viewItem == dyno",
 					"group": "inline@1"
 				},
 				{
 					"command": "hero-heroku.dyno.stop",
-					"when": "view == hero-heroku && viewItem == dynoUp",
+					"when": "view == hero-heroku && viewItem == dyno",
 					"group": "inline@2"
+				},
+				{
+					"command": "hero-heroku.dyno.logs",
+					"when": "view == hero-heroku && viewItem == dyno",
+					"group": "inline@3"
 				}
 			]
 		}

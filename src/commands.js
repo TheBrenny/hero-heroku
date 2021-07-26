@@ -1,6 +1,7 @@
 const vscode = require('vscode');
 const Heroku = require("./heroku");
 const promisify = require("util").promisify;
+const fetch = require("node-fetch");
 const exec = promisify(require('child_process').exec);
 // const logger = console.log;
 const logger = require("./logger");
@@ -187,6 +188,48 @@ function stopDyno(tdp, dyno) {
     Heroku.post(`/apps/${dyno.parent.name}/dynos/${dyno.name}/actions/stop`).then(() => refreshBranch(tdp, dyno.parent));
 }
 
+function logDyno(tdp, dyno) {
+    logger("Loggin dyno");
+    Heroku.post(`/apps/${dyno.parent.name}/log-sessions`, {
+        lines: 15,
+        tail: true,
+        source: "app",
+        dyno: dyno.name
+    }).then(async (data) => {
+        let logUrl = data.logplex_url;
+        let logStream = await fetch(logUrl);
+
+        const writeEmitter = new vscode.EventEmitter();
+        const pty = {
+            onDidWrite: writeEmitter.event,
+            open: async () => {
+                logger("Log stream opened");
+                try {
+                    for await (const chunk of logStream.body) {
+                        if (chunk.toString() !== "\u0000") writeEmitter.fire(chunk.toString().replace(/\n/gm, "\r\n"));
+                    }
+                } catch (err) {
+                    console.error(err);
+                    logger(err);
+                }
+            },
+            close: () => {
+                // Close the fetch stream
+                logger("Log stream closed");
+                logStream.close();
+                writeEmitter.dispose();
+            },
+            handleInput: (data) => {} // incoming keystrokes
+        };
+        const terminal = vscode.window.createTerminal({
+            name: `${dyno.parent.name}/${dyno.name} Log`,
+            pty: pty
+        });
+        terminal.show(true);
+        // node fetch the log url and pipe it to a stream that dumps it in a terminal
+    });
+}
+
 const commands = {
     authenticate,
     refreshTreeView,
@@ -200,6 +243,7 @@ const commands = {
         scale: scaleDyno,
         restart: restartDyno,
         stop: stopDyno,
+        logs: logDyno,
     },
 };
 
