@@ -26,6 +26,10 @@ There are two settings which are available:
 
 Find them? Try fix them! 🥳
 
+## Roadmap
+
+See [TODO.md](./TODO.md).
+
 ## Release Notes
 
 See [CHANGELOG.md](./CHANGELOG.md).
