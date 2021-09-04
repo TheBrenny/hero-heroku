@@ -6,17 +6,19 @@ A set of targets/milestone features that I'd like to see implemented into produc
 
 - [x] View all owned apps
   - [ ] View all apps that the user has access to (needs to be confirmed)
-- [ ] View all owned pipelines
+- [x] View all owned pipelines
 - [x] View the states of Dynos
 - [x] Alter the states of Dynos (you can do this by scaling)
-- [ ] View what addons are connected to an app
+- [x] View what addons are connected to an app
+- [x] Connect a one-off dyno to an app
 
 ## Should Have
 
-- [ ] View the app logs of specific Dynos
+- [x] View the app logs of specific Dynos
   - [ ] View any type of log for specific Dynos
   - [ ] Use the log terminal pane to switch
 - [ ] Push and build an app (and view it's build log)
+- [ ] Make more options configurable (such as dyno TTL)
 
 ## Could Have
 

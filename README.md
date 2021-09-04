@@ -8,8 +8,8 @@ Hero Heroku is the (unofficial) Heroku counterpart to Microsoft's Azure Extensio
 - Start, stop, and create Dynos.
 - Scale your app horizontally.
 - Add, modify and delete addons for apps.
-- Check the build logs, ~~and open a console stream~~.
-- ~~Quickly open one-off dynos, like bashing into your app.~~
+- ~~Check the build logs~~, and open an app log stream.
+- Quickly open one-off dynos, like bashing into your app.
 
 ## Requirements
 

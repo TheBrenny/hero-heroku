@@ -3,12 +3,12 @@ const Heroku = require("./heroku");
 const promisify = require("util").promisify;
 const fetch = require("node-fetch");
 const exec = promisify(require('child_process').exec);
-// const logger = console.log;
 const logger = require("./logger");
 const {
     Dyno,
     HerokuTreeProvider
 } = require("./herokuDataProvider");
+const Rendezvous = require("rendezvous-protocol");
 
 const {
     head,
@@ -84,24 +84,59 @@ function refreshBranch(tdp, app) {
     return tdp.refresh(app);
 }
 
-function createDyno(tdp, dyno) {
+function createDyno(tdp, app) {
     logger("Creating dyno");
     return vscode.window.showInputBox({
         ignoreFocusOut: true,
         password: false,
-        placeHolder: "npm start... ?",
+        placeHolder: "bash",
         prompt: "Enter the command for the new dyno",
+        value: "bash",
     }).then(cmd => {
         if (typeof cmd === "undefined") throw {
             name: "HH-UserChoice",
             message: "hero-heroku: User canceled action."
         };
-        return Heroku.post("/apps/" + dyno.parent.name + "/dynos", {
-            command: cmd
+        return Heroku.post("/apps/" + app.name + "/dynos", {
+            command: cmd,
+            attach: true,
+            type: "run",
+            time_to_live: 30 * 60 // TODO: make this configurable
         });
-    }).then(() => {
+    }).then(async (data) => {
         logger("Creating done");
-        refreshBranch(tdp, dyno.parent);
+        refreshBranch(tdp, app);
+
+        let rv = new Rendezvous(data.attach_url);
+        await rv.connect();
+
+        let command = "";
+        const writeEmitter = new vscode.EventEmitter();
+        const pty = {
+            onDidWrite: writeEmitter.event,
+            open: () => {
+                logger("One-Off Dyno opened");
+                rv.on("data", (d) => {
+                    d = d.toString();
+                    writeEmitter.fire(d);
+                    if (d.trim() === "exit") {
+                        rv.end();
+                        terminal.dispose();
+                    }
+                });
+            },
+            close: () => {
+                logger("Dyno closed");
+                rv.end();
+                writeEmitter.dispose();
+            },
+            handleInput: async (data) => rv.write(data)
+        };
+        const terminal = vscode.window.createTerminal({
+            name: `${app.name}/${data.name} (One-off)`,
+            pty: pty
+        });
+        terminal.show(true);
     }).catch(err => {
         if (err.name === "HH-UserChoice") logger(err.message);
         else throw err;
@@ -185,7 +220,12 @@ function restartDyno(tdp, dyno) {
 
 function stopDyno(tdp, dyno) {
     logger("Stopping dyno");
-    Heroku.post(`/apps/${dyno.parent.name}/dynos/${dyno.name}/actions/stop`).then(() => refreshBranch(tdp, dyno.parent));
+    Heroku.post(`/apps/${dyno.parent.name}/dynos/${dyno.name}/actions/stop`).then((d) => {
+        logger(d);
+        refreshBranch(tdp, dyno.parent);
+    }).catch(err => {
+        logger(err);
+    });
 }
 
 function logDyno(tdp, dyno) {
