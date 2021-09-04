@@ -218,7 +218,8 @@
 	"scripts": {
 		"lint": "eslint .",
 		"pretest": "npm run lint",
-		"test": "node ./test/runTest.js"
+		"test": "node ./test/runTest.js",
+		"postpublish": "vsce package && vsce publish"
 	},
 	"devDependencies": {
 		"@hediet/node-reload": "^0.7.3",
