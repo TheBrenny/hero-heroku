@@ -9,7 +9,7 @@
 		"url": "https://github.com/TheBrenny/hero-heroku.git"
 	},
 	"engines": {
-		"vscode": "^1.58.1"
+		"vscode": "^1.60.0"
 	},
 	"categories": [
 		"Other"
