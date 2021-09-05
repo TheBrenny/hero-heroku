@@ -19,6 +19,7 @@
 		"onView:hero-heroku",
 		"onCommand:hero-heroku.authenticate"
 	],
+	"icon": "./res/heroku-app-icon.png",
 	"main": "./src/extension.js",
 	"contributes": {
 		"colors": [
