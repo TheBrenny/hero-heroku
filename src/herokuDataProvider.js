@@ -1,6 +1,7 @@
 const path = require('path');
 const vscode = require('vscode');
 const Heroku = require('./heroku');
+const logger = require('./logger');
 
 const dynoStates = ["up", "starting", "idle", "crashed", "down"];
 const addonStates = ["provisioned", "provisioning", "", "", "deprovisioned"];
@@ -12,6 +13,7 @@ class HerokuTreeProvider {
     }
 
     refresh(element) {
+        logger("Firing element change");
         this._changeEvent.fire(element);
     }
 
