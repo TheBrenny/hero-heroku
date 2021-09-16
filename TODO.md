@@ -1,6 +1,6 @@
 # TODO
 
-A set of targets/milestone features that I'd like to see implemented into production, separated into [MUST HAVE](#must-have), [SHOULD HAVE](#should-have), and [COULD HAVE](#could-have).
+A set of targets/milestone features that I'd like to see implemented into production, separated into [MUST HAVE](#must-have), [SHOULD HAVE](#should-have), [COULD HAVE](#could-have), and [WON'T HAVE](#wont-have). (See more at the [MoSCoW method](https://en.wikipedia.org/wiki/MoSCoW_method)).
 
 ## Must Have
 
@@ -24,3 +24,7 @@ A set of targets/milestone features that I'd like to see implemented into produc
 
 - [ ] Set the context of the treeview to a particular app or pipeline
   - [ ] Make it persistent to the project (use `machine-overridable`?)
+
+## Won't Have
+
+(Yeah, this is an empty list for now)
