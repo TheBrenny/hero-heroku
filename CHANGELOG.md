@@ -1,3 +1,31 @@
 # Change Log
 
-All notable changes to the `hero-heroku` extension will be documented on the [releases](https://github.com/thebrenny/hero-heroku/releases) page!
+- v1.x.x
+  - Changed the TODO list
+  - Changed format of CHANGELOG
+- v1.4.2
+  - Remove `postpublish` script
+  - Fixed icon
+- v1.4.1
+  - Added `postpublish` script
+  - Added icons and readme images
+- v1.4.0
+  - Added TODO and rodmap
+  - Added ability to run one-off dynos
+    - Added the [`rendezvous-protocol`](https://github.com/TheBrenny/rendezvous-protocol) package (shameless plug)
+  - Updated VSCode Engine requirement
+- v1.3.0
+  - Added Dyno logging (log streams)
+- v1.2.1
+  - Updated dev dependencies
+  - Added a logger
+  - Updated VSCode Engine requirement
+- v1.2.0
+  - Minor code refactor
+  - Ignored the test profile
+  - Added addons
+- v1.1.0
+  - Added pipelines
+- v1.0.0
+  - Initial release!
+
