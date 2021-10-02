@@ -20,6 +20,7 @@ class HerokuTreeProvider {
     async getTreeItem(element) {
         return element;
     }
+
     async getParent(element) {
         return element.parent;
     }
@@ -114,35 +115,77 @@ class HerokuTreeProvider {
     }
 }
 
-class GenericItem extends vscode.TreeItem {
-    constructor(name, opts) {
+class HDPTreeItem extends vscode.TreeItem {
+    constructor(name, context, parent, opts) {
         super(name);
-        opts = opts || {};
+        this.setName(name);
+        this.setContext(context);
+        this.setParent(parent);
+        this.setOptions(opts);
+
+        this.children = [];
+        this.dirty = false;
+    }
+    setName(name) {
         this.label = this.name = name;
-        this.parent = opts.parent;
-        this.contextValue = opts.contextValue;
-        this.tooltip = opts.tooltip;
-        this.collapsibleState = opts.collapsibleState !== undefined ? opts.collapsibleState : vscode.TreeItemCollapsibleState;
-        this.iconPath = opts.iconPath;
-        this.extra = opts.extra;
+        return this;
+    }
+    setContext(context) {
+        this.contextValue = context;
+        return this;
+    }
+    setParent(parent) {
+        if((this.parent ?? null) === parent) return this;
+        this.parent = parent;
+        this.parent.addChild(this);
+        return this;
+    }
+    setOptions(opts) {
+        this.tooltip = opts?.tooltip;
+        this.collapsibleState = opts?.collapsibleState ?? vscode.TreeItemCollapsibleState.Collapsed;
+        this.iconPath = opts?.iconPath;
+    }
+
+    addChild(child) {
+        if(Array.isArray(child)) {
+            child.forEach(c => this.addChild(c));
+            return this;
+        }
+        if(this.children.includes(child)) return this;
+
+        this.children.push(child);
+        child.setParent(this);
+        return this;
+    }
+
+    removeChild(child) {
+        if(!this.children.includes(child)) return this;
+
+        this.children = this.children.filter(c => c !== child);
+        child.setParent(null);
+        return this;
     }
 }
 
-class App extends vscode.TreeItem {
-    constructor(app, opts) {
-        super(app.name);
-        opts = opts || {};
-        this.label = this.name = app.name;
+class GenericItem extends HDPTreeItem {
+    constructor(name, context, parent, opts) {
+        super(name, context, parent, opts);
+    }
+}
+
+class App extends HDPTreeItem {
+    constructor(app, parent, opts) {
+        super(app.name, "app", parent, opts);
         this.id = app.id;
-        this.parent = opts.parent || null;
-        this.contextValue = "app";
         this.web_url = app.web_url;
         this.state = getBestState(app.dynos);
         this.dynos = app.dynos;
         this.addons = app.addons;
-        this.tooltip = `State: ${this.state}`;
-        this.collapsibleState = opts.collapsibleState || vscode.TreeItemCollapsibleState.Collapsed;
-        this.iconPath = App.getIconPath(this.state);
+
+        this.setOptions({
+            tooltip: `State: ${this.state}`,
+            iconPath: App.getIconPath(this.state)
+        });
     }
 
     static getIconPath(dynoState) {
@@ -150,40 +193,37 @@ class App extends vscode.TreeItem {
     }
 }
 
-class Pipeline extends vscode.TreeItem {
-    constructor(pipeline, opts) {
-        super(pipeline.name);
-        opts = opts || {};
-        this.label = this.name = pipeline.name;
-        this.parent = opts.parent || null;
-        let allApps = Object.values(pipeline.stages).reduce((a, c) => a = a.concat(c), []);
-        this.state = getBestState(allApps);
+class Pipeline extends HDPTreeItem {
+    constructor(pipeline, parent, opts) {
+        super(pipeline.name, "pipeline", parent, opts);
+        this.allApps = Object.values(pipeline.stages).reduce((a, c) => a = a.concat(c), []);
+        this.state = getBestState(this.allApps);
         this.stages = Object.keys(pipeline.stages).map(stage => {
-            return new PipelineStage(stage, {
-                parent: this,
+            return new PipelineStage(stage, this, {
                 apps: pipeline.stages[stage],
             });
         });
-        this.contextValue = "pipeline";
-        this.tooltip = allApps.length + " app" + (allApps.length !== 1 ? "s" : "");
-        this.collapsibleState = opts.collapsibleState || vscode.TreeItemCollapsibleState.Collapsed;
-        this.iconPath = new vscode.ThemeIcon("server", new vscode.ThemeColor("heroheroku.dynoState." + this.state));
+
+        this.setOptions({
+            tooltip: pluralize(this.allApps.length, "app"),
+            iconPath: new vscode.ThemeIcon("server", new vscode.ThemeColor("heroheroku.dynoState." + this.state)),
+        });
     }
 }
 
-class PipelineStage extends vscode.TreeItem {
-    constructor(stage, opts) {
-        super(stage);
-        opts = opts || {};
-        this.label = this.name = (stage.substr(0, 1).toUpperCase() + stage.substr(1).toLowerCase());
-        this.parent = opts.parent || null;
-        this.contextValue = "stage";
-        this.tooltip = opts.apps.length + " app" + (opts.apps.length !== 1 ? "s" : "");
+class PipelineStage extends HDPTreeItem {
+    constructor(stage, parent, opts) {
+        super(stage, "stage", parent, opts);
+        this.stage = stage;
+        this.setName((stage.substr(0, 1).toUpperCase() + stage.substr(1).toLowerCase()));
         this.apps = opts.apps;
-        for(let a of this.apps) a.parent = this;
-        this.collapsibleState = opts.collapsibleState || vscode.TreeItemCollapsibleState.Collapsed;
         this.state = getBestState(opts.apps);
-        this.iconPath = PipelineStage.getStageImage(stage, this.state);
+
+        this.addChild(this.apps);
+        this.setOptions({
+            tooltip: pluralize(this.apps.length, "app"),
+            iconPath: PipelineStage.getStageImage(stage, this.state),
+        });
     }
 
     static getStageImage(stage, state) {
@@ -200,17 +240,15 @@ class PipelineStage extends vscode.TreeItem {
     }
 }
 
-class Addon extends vscode.TreeItem {
-    constructor(addon, opts) {
-        super(addon.name);
-        opts = opts || {};
-        this.label = this.name = addon.name;
-        this.parent = opts.parent || null;
-        this.contextValue = "addon";
+class Addon extends HDPTreeItem {
+    constructor(addon, parent, opts) {
+        super(addon.name, "addon", parent, opts);
         this.state = addon.state;
-        this.tooltip = addon.addon_service.name;
-        this.collapsibleState = vscode.TreeItemCollapsibleState.None;
-        this.iconPath = new vscode.ThemeIcon("extensions", new vscode.ThemeColor(Addon.stateColorLookup(this.state)));
+        this.setOptions({
+            tooltip: addon.addon_service.name,
+            collapsibleState: vscode.TreeItemCollapsibleState.None,
+            iconPath: new vscode.ThemeIcon("extensions", new vscode.ThemeColor(Addon.stateColorLookup(this.state)))
+        });
     }
 
     static stateColorLookup(addonState) {
@@ -218,17 +256,15 @@ class Addon extends vscode.TreeItem {
     }
 }
 
-class Dyno extends vscode.TreeItem {
-    constructor(dyno, opts) {
-        super(dyno.name);
-        opts = opts || {};
-        this.label = this.name = dyno.name;
-        this.parent = opts.parent || null;
-        this.contextValue = "dyno";
+class Dyno extends HDPTreeItem {
+    constructor(dyno, parent, opts) {
+        super(dyno.name, "dyno", parent, opts);
         this.state = dyno.state;
-        this.tooltip = "Command: " + dyno.command;
-        this.collapsibleState = vscode.TreeItemCollapsibleState.None;
-        this.iconPath = new vscode.ThemeIcon("server-process", new vscode.ThemeColor(Dyno.stateColorLookup(this.state)));
+        this.setOptions({
+            tooltip: "Command: " + dyno.command,
+            collapsibleState: vscode.TreeItemCollapsibleState.None,
+            iconPath: new vscode.ThemeIcon("server-process", new vscode.ThemeColor(Dyno.stateColorLookup(this.state))),
+        });
     }
 
     static stateColorLookup(dynoState) {
@@ -246,9 +282,16 @@ function getBestState(statefulArr, states) {
     return states[state];
 }
 
+function pluralize(count, noun) {
+    return count + " " + noun + (count !== 1 ? "s" : "");
+}
+
 module.exports = {
     HerokuTreeProvider,
     GenericItem,
     App,
-    Dyno
+    Pipeline,
+    PipelineStage,
+    Addon,
+    Dyno,
 };
