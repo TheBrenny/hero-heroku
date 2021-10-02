@@ -1,6 +1,9 @@
 # Change Log
 
-- v1.x.x
+- v1.5.0
+  - Rewrote the tree building ... algorithm? It should now be much faster, and also allow for individual branches to be updated independently of the whole tree. (Try it out by openning an app's web url!)
+  - Added the ability to grab Config Vars
+    - Also added the ability to update Config Vars
   - Changed the TODO list
   - Changed format of CHANGELOG
 - v1.4.2

@@ -147,7 +147,7 @@ async function tryUpdateConfigVars(tdp, app) {
     if(app === undefined) {
         app = await vscode.window.showInputBox({
             prompt: "Enter the name of the app",
-        }).then(appName => HerokuTreeProvider.getCachedItemFromName(appName));
+        }).then(appName => HerokuTreeProvider.instance.getTreeItem(appName));
     }
     let vars = vscode.window.activeTextEditor.document.getText();
     return updateConfigVars(tdp, app, vars);
