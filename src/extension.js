@@ -46,6 +46,8 @@ function activate(context) {
 	// App
 	context.subscriptions.push(vscode.commands.registerCommand("hero-heroku.app.openUrl", commands.app.openUrl.bind(this, tdp)));
 	context.subscriptions.push(vscode.commands.registerCommand("hero-heroku.app.openDashboard", commands.app.openDashboard.bind(this, tdp)));
+	context.subscriptions.push(vscode.commands.registerCommand("hero-heroku.app.configVars", commands.app.getConfigVars.bind(this, tdp)));
+	context.subscriptions.push(vscode.commands.registerCommand("hero-heroku.app.updateConfigVars", commands.app.tryUpdateConfigVars.bind(this, tdp)));
 	// Dyno
 	context.subscriptions.push(vscode.commands.registerCommand("hero-heroku.dyno.create", commands.dyno.create.bind(this, tdp)));
 	context.subscriptions.push(vscode.commands.registerCommand("hero-heroku.dyno.scale", commands.dyno.scale.bind(this, tdp)));

@@ -45,45 +45,6 @@ function refreshTreeView(tdp) {
     return tdp.refresh();
 }
 
-function openAppUrl(tdp, app) {
-    logger("Opening external app url");
-    return vscode.env.openExternal(app.web_url)
-        .then(success => {
-            if (!success) throw {
-                name: "HH-UserChoice",
-                message: "hero-heroku: User didn't want to open app."
-            };
-        })
-        .then(() => head(app.web_url))
-        .then(() => sleep(500))
-        .then(async () => {
-            return Object.assign(app, await HerokuTreeProvider.getApp(app), {
-                parent: app.parent
-            });
-        })
-        .then(t => (console.log(t), t))
-        .then((target) => {
-            while (target.parent != null) target = target.parent;
-            return target;
-        })
-        .then(t => (console.log(t), t))
-        .then((target) => refreshBranch(tdp, target))
-        .catch(error => {
-            if (error.name === "HH-UserChoice") logger(error.message);
-            else throw error;
-        });
-}
-
-function openAppDashboard(_tdp, app) {
-    logger("Opening app dashboard");
-    return vscode.env.openExternal("https://dashboard.heroku.com/apps/" + app.name);
-}
-
-function refreshBranch(tdp, app) {
-    logger("Refreshing TDP branch");
-    return tdp.refresh(app);
-}
-
 function createDyno(tdp, app) {
     logger("Creating dyno");
     return vscode.window.showInputBox({
@@ -138,9 +99,79 @@ function createDyno(tdp, app) {
         });
         terminal.show(true);
     }).catch(err => {
-        if (err.name === "HH-UserChoice") logger(err.message);
+        if(err.name === "HH-UserChoice") logger(err.message);
         else throw err;
     });
+}
+
+function openAppUrl(tdp, app) {
+    logger("Opening external app url");
+    vscode.env.openExternal(app.web_url)
+        .then(success => {
+            if(!success) throw {
+                name: "HH-UserChoice",
+                message: "hero-heroku: User didn't want to open app."
+            };
+        })
+        .then(() => pingAndRefresh(tdp, app.web_url, app))
+        .catch(error => {
+            if(error.name === "HH-UserChoice") logger(error.message);
+            else throw error;
+        });
+}
+
+function openAppDashboard(_tdp, app) {
+    logger("Opening app dashboard");
+    vscode.env.openExternal("https://dashboard.heroku.com/apps/" + app.name);
+}
+
+function getConfigVars(tdp, app) {
+    logger("Getting config vars");
+    let starterVars = {};
+    Heroku.get(`/apps/${app.name}/config-vars`)
+        .then(async (cfg) => {
+            starterVars = cfg;
+            let entries = Object.entries(cfg);
+            let output = entries.map(([key, value]) => `${key}=${value}`).join("\n");
+            let hasDotEnv = await vscode.languages.getLanguages().then(langs => langs.includes("dotenv"));
+            let doc = await vscode.workspace.openTextDocument({
+                content: output,
+                language: hasDotEnv ? "dotenv" : "shellscript"
+            });
+            return vscode.window.showTextDocument(doc);
+            // MAYBE: on save, push changes to the heroku app
+        });
+}
+
+async function tryUpdateConfigVars(tdp, app) {
+    if(app === undefined) {
+        app = await vscode.window.showInputBox({
+            prompt: "Enter the name of the app",
+        }).then(appName => HerokuTreeProvider.getCachedItemFromName(appName));
+    }
+    let vars = vscode.window.activeTextEditor.document.getText();
+    return updateConfigVars(tdp, app, vars);
+}
+function updateConfigVars(tdp, app, vars) {
+    logger("Updating config vars");
+    if(vars instanceof vscode.TextDocument) {
+        vars = vars.getText();
+        vars = vars.split("\n").map(line => line.split("="));
+        vars = vars.reduce((acc, [key, value]) => (acc[key] = value, acc), {});
+    }
+    return Heroku.patch(`/apps/${app.name}/config-vars`, vars)
+        .then(() => {
+            return showInfoMessage("Config Vars updated!");
+        }).then(() => {
+            return pingAndRefresh(tdp, app.web_url, app);
+        }).catch((e) => {
+            return showErrorMessage("update the Config Vars", e);
+        });
+}
+
+function refreshBranch(tdp, app) {
+    logger("Refreshing TDP branch");
+    return tdp.refresh(app);
 }
 
 function scaleDyno(tdp, dyno) {
@@ -270,13 +301,36 @@ function logDyno(tdp, dyno) {
     });
 }
 
+function pingAndRefresh(tdp, url, tdpElement) {
+    return Promise.resolve()
+        .then(() => head(url))
+        .then(() => sleep(1000))
+        .then(() => refreshBranch(tdp, tdpElement))
+        .catch((e) => {
+            return showErrorMessage("ping the app", e);
+        });
+}
+
+function showInfoMessage(message, ...actions) {
+    return vscode.window.showInformationMessage(message, ...actions);
+}
+function showErrorMessage(message, error, ...actions) {
+    let readE = `${error.name ?? "Error"} ${error.code ?? error.statusCode ?? "(?)"}\n${error.message}`;
+    return vscode.window.showErrorMessage("Hero Heroku encountered an error while trying to " + message + ":\n" + readE, ...actions);
+}
+
 const commands = {
     authenticate,
     refreshTreeView,
+    showInfoMessage,
+    showErrorMessage,
     app: {
         openUrl: openAppUrl,
         openDashboard: openAppDashboard,
-        refreshApp: refreshBranch
+        refreshApp: refreshBranch,
+        getConfigVars: getConfigVars,
+        tryUpdateConfigVars: tryUpdateConfigVars,
+        updateConfigVars: updateConfigVars,
     },
     dyno: {
         create: createDyno,
