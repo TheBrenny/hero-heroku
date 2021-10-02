@@ -5,12 +5,19 @@ A set of targets/milestone features that I'd like to see implemented into produc
 ## Must Have
 
 - [x] View all owned apps
-  - [ ] View all apps that the user has access to (needs to be confirmed)
+  - [x] View all apps that the user has access to (needs to be confirmed)
 - [x] View all owned pipelines
 - [x] View the states of Dynos
 - [x] Alter the states of Dynos (you can do this by scaling)
 - [x] View what addons are connected to an app
 - [x] Connect a one-off dyno to an app
+- [x] View the Config Vars for a specific app
+  - [x] Be able to update those Config Vars
+- [ ] Trigger a build from the workspace root
+  - [ ] This should only be available if the user has a `heroku` git remote
+- [ ] Addon management
+  - [ ] Provision new addons
+  - [ ] Remove addons
 
 ## Should Have
 
@@ -24,7 +31,9 @@ A set of targets/milestone features that I'd like to see implemented into produc
 
 - [ ] Set the context of the treeview to a particular app or pipeline
   - [ ] Make it persistent to the project (use `machine-overridable`?)
+- [ ] Change the `dyno.create` command location to be an element in the Dyno Tree
+- [ ] Better views (maybe WebViews) for responses from the server taht pretty much get piped directly to the user
 
 ## Won't Have
 
-(Yeah, this is an empty list for now)
+- (Yeah, this is an empty list for now)
