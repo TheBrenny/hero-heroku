@@ -5,7 +5,7 @@ const logger = require("./logger");
 class Heroku {
     constructor() {
         logger("Constructing `Heroku` class");
-        if (Heroku.instance === undefined) Heroku.instance = this;
+        if(Heroku.instance === undefined) Heroku.instance = this;
         let apiKey = vscode.workspace.getConfiguration("hero-heroku").get("apiKey");
         this.client = new HerokuClient({
             token: apiKey
@@ -13,7 +13,7 @@ class Heroku {
     }
 
     static getInstance() {
-        if (Heroku.instance === undefined) new Heroku();
+        if(Heroku.instance === undefined) new Heroku();
         return Heroku.instance;
     }
     static destroy() {

@@ -10,7 +10,7 @@ function activate(context) {
 	logger("Activating...");
 
 	logger("API Key set? " + (Heroku.getApiKey() !== "").toString());
-	if (Heroku.getApiKey() !== "") {
+	if(Heroku.getApiKey() !== "") {
 		new Heroku();
 	}
 
@@ -22,16 +22,16 @@ function activate(context) {
 
 	logger("Creating Config Change Listener");
 	vscode.workspace.onDidChangeConfiguration((e) => {
-		if (e.affectsConfiguration("hero-heroku.apiCalls")) {
+		if(e.affectsConfiguration("hero-heroku.apiCalls")) {
 			logger("apiCalls config changed");
 			destroyRefreshInterval();
-			if (Heroku.getApiKey() !== "") createRefreshInterval();
+			if(Heroku.getApiKey() !== "") createRefreshInterval();
 		}
-		if (e.affectsConfiguration("hero-heroku.apiKey")) {
+		if(e.affectsConfiguration("hero-heroku.apiKey")) {
 			logger("apiKey config changed");
 			destroyRefreshInterval();
 			Heroku.destroy();
-			if (Heroku.getApiKey() !== "") {
+			if(Heroku.getApiKey() !== "") {
 				new Heroku();
 				commands.refreshTreeView();
 				createRefreshInterval();

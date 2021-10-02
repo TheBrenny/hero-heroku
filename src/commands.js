@@ -21,7 +21,7 @@ function authenticate() {
         .then((std) => {
             const stderr = std.stderr;
             const stdout = std.stdout;
-            if (stderr) throw {
+            if(stderr) throw {
                 name: "HerokuCLI",
                 message: stderr.trim()
             };
@@ -54,7 +54,7 @@ function createDyno(tdp, app) {
         prompt: "Enter the command for the new dyno",
         value: "bash",
     }).then(cmd => {
-        if (typeof cmd === "undefined") throw {
+        if(typeof cmd === "undefined") throw {
             name: "HH-UserChoice",
             message: "hero-heroku: User canceled action."
         };
@@ -80,7 +80,7 @@ function createDyno(tdp, app) {
                 rv.on("data", (d) => {
                     d = d.toString();
                     writeEmitter.fire(d);
-                    if (d.trim() === "exit") {
+                    if(d.trim() === "exit") {
                         rv.end();
                         terminal.dispose();
                     }
@@ -203,7 +203,7 @@ function scaleDyno(tdp, dyno) {
                 ignoreFocusOut: true,
             });
         }).then(choice => {
-            if (typeof choice === "undefined") throw {
+            if(typeof choice === "undefined") throw {
                 name: "HH-UserChoice",
                 message: "hero-heroku: User canceled action."
             };
@@ -219,13 +219,13 @@ function scaleDyno(tdp, dyno) {
                 valueSelection: [0, 1],
                 prompt: "Enter the new formation size",
                 validateInput(d) {
-                    if (/[^\d]/.test(d)) return "The value must be an integer >= 0!";
+                    if(/[^\d]/.test(d)) return "The value must be an integer >= 0!";
                     return "";
                     // add more tests to determine the max qty for the formation?
                 }
             });
         }).then(qty => {
-            if (typeof qty === "undefined") throw {
+            if(typeof qty === "undefined") throw {
                 name: "HH-UserChoice",
                 message: "hero-heroku: User canceled action."
             };
@@ -238,7 +238,7 @@ function scaleDyno(tdp, dyno) {
             logger("Scaling done");
             refreshBranch(tdp, dyno.parent);
         }).catch(err => {
-            if (err.name === "HH-UserChoice") logger(err.message);
+            if(err.name === "HH-UserChoice") logger(err.message);
             throw err;
         });
 }
@@ -276,10 +276,10 @@ function logDyno(tdp, dyno) {
             open: async () => {
                 logger("Log stream opened");
                 try {
-                    for await (const chunk of logStream.body) {
-                        if (chunk.toString() !== "\u0000") writeEmitter.fire(chunk.toString().replace(/\n/gm, "\r\n"));
+                    for await(const chunk of logStream.body) {
+                        if(chunk.toString() !== "\u0000") writeEmitter.fire(chunk.toString().replace(/\n/gm, "\r\n"));
                     }
-                } catch (err) {
+                } catch(err) {
                     console.error(err);
                     logger(err);
                 }

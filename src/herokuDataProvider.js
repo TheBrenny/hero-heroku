@@ -25,18 +25,18 @@ class HerokuTreeProvider {
     }
 
     async getChildren(element) {
-        if (!element) return await HerokuTreeProvider.getRootItems();
+        if(!element) return await HerokuTreeProvider.getRootItems();
 
-        if (element instanceof App) {
+        if(element instanceof App) {
             let ret = [];
-            if (element.dynos.length > 0) {
+            if(element.dynos.length > 0) {
                 ret.push(new GenericItem("Dynos", {
                     contextValue: "dynoBranch",
                     parent: element,
                     iconPath: new vscode.ThemeIcon("server-process", new vscode.ThemeColor(Dyno.stateColorLookup(element.state)))
                 }));
             }
-            if (element.addons.length > 0) {
+            if(element.addons.length > 0) {
                 ret.push(new GenericItem("Add-ons", {
                     contextValue: "addonBranch",
                     parent: element,
@@ -45,22 +45,22 @@ class HerokuTreeProvider {
             }
 
             // build list and deployments and logs
-            
+
             return ret;
         }
 
-        if (element instanceof Pipeline) {
+        if(element instanceof Pipeline) {
             return element.stages;
         }
-        if (element instanceof PipelineStage) {
+        if(element instanceof PipelineStage) {
             return element.apps;
         }
 
-        if (element instanceof GenericItem) {
-            if (element.contextValue === "dynoBranch") {
+        if(element instanceof GenericItem) {
+            if(element.contextValue === "dynoBranch") {
                 return HerokuTreeProvider.getDynoTree(element.parent);
             }
-            if (element.contextValue === "addonBranch") {
+            if(element.contextValue === "addonBranch") {
                 return HerokuTreeProvider.getAddonTree(element.parent);
             }
         }
@@ -90,7 +90,7 @@ class HerokuTreeProvider {
 
         couplings.forEach(coupling => {
             let appIndex = allApps.findIndex(app => app.id === coupling.app.id);
-            if (appIndex === -1) return;
+            if(appIndex === -1) return;
             let a = allApps.splice(appIndex, 1)[0]; // returns an App object
             pipeline.stages[coupling.stage] = pipeline.stages[coupling.stage] || []; // make sure we have an array
             pipeline.stages[coupling.stage].push(a);
@@ -180,7 +180,7 @@ class PipelineStage extends vscode.TreeItem {
         this.contextValue = "stage";
         this.tooltip = opts.apps.length + " app" + (opts.apps.length !== 1 ? "s" : "");
         this.apps = opts.apps;
-        for (let a of this.apps) a.parent = this;
+        for(let a of this.apps) a.parent = this;
         this.collapsibleState = opts.collapsibleState || vscode.TreeItemCollapsibleState.Collapsed;
         this.state = getBestState(opts.apps);
         this.iconPath = PipelineStage.getStageImage(stage, this.state);
@@ -190,11 +190,11 @@ class PipelineStage extends vscode.TreeItem {
         let colour = new vscode.ThemeColor("heroheroku.dynoState." + state);
         let icon = "cloud";
 
-        if (stage === "test") icon = "beaker";
-        else if (stage === "review") icon = "checklist";
-        else if (stage === "development") icon = "tools";
-        else if (stage === "staging") icon = "cloud-upload";
-        else if (stage === "production") icon = "cloud";
+        if(stage === "test") icon = "beaker";
+        else if(stage === "review") icon = "checklist";
+        else if(stage === "development") icon = "tools";
+        else if(stage === "staging") icon = "cloud-upload";
+        else if(stage === "production") icon = "cloud";
 
         return new vscode.ThemeIcon(icon, colour);
     }
@@ -239,9 +239,9 @@ class Dyno extends vscode.TreeItem {
 function getBestState(statefulArr, states) {
     states = states || dynoStates;
     let state = 4;
-    for (let i = 0; i < statefulArr.length && state > 0; i++) {
+    for(let i = 0; i < statefulArr.length && state > 0; i++) {
         const dyState = states.indexOf(statefulArr[i].state);
-        if (dyState < state) state = dyState;
+        if(dyState < state) state = dyState;
     }
     return states[state];
 }
