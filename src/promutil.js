@@ -1,12 +1,12 @@
 const fetch = require('node-fetch');
 
 module.exports = {
-    "sleep": function (millis, ret) {
+    sleep(millis, ret) {
         return new Promise((resolve) => {
             setTimeout(() => resolve(ret), millis);
         });
     },
-    "head": function (url) {
+    head(url) {
         return fetch(url, {
             method: "HEAD"
         });
