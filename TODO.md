@@ -11,8 +11,6 @@ A set of targets/milestone features that I'd like to see implemented into produc
 - [x] Alter the states of Dynos (you can do this by scaling)
 - [x] View what addons are connected to an app
 - [x] Connect a one-off dyno to an app
-- [x] View the Config Vars for a specific app
-  - [x] Be able to update those Config Vars
 - [ ] Trigger a build from the workspace root
   - [ ] This should only be available if the user has a `heroku` git remote
 - [ ] Addon management
@@ -26,6 +24,10 @@ A set of targets/milestone features that I'd like to see implemented into produc
   - [ ] Use the log terminal pane to switch
 - [ ] Push and build an app (and view it's build log)
 - [ ] Make more options configurable (such as dyno TTL)
+- [x] View the Config Vars for a specific app
+  - [x] Be able to update those Config Vars
+  - [ ] Edit Config Vars in a custom editor (maybe?)
+    - This would allow us to hook into the save event without VSCode getting angry at us if the user doesn't want to actually save the file? (https://code.visualstudio.com/api/extension-guides/custom-editors#custom-text-editor)
 
 ## Could Have
 

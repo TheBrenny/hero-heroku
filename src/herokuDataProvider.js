@@ -242,6 +242,7 @@ class AddonBranch extends HDPTreeItem {
     constructor(parent, opts) {
         super("Addons", "addonBranch", parent, opts);
         // this.state = getBestState(addon.apps);
+        this.appParent = parent;
         this.setOptions({
             iconPath: new vscode.ThemeIcon("empty-window")
         });
@@ -254,6 +255,7 @@ class DynoBranch extends HDPTreeItem {
     constructor(parent, opts) {
         super("Dynos", "dynoBranch", parent, opts);
         // this.state = getBestState(addon.apps);
+        this.appParent = parent;
         this.setOptions({
             iconPath: new vscode.ThemeIcon("server-process", new vscode.ThemeColor(Dyno.stateColorLookup(parent.state)))
         });
@@ -267,6 +269,7 @@ class Addon extends HDPTreeItem {
     constructor(addon, parent, opts) {
         super(addon.name, "addon", parent, opts);
         this.state = addon.state;
+        this.appParent = parent.appParent;
         this.setOptions({
             tooltip: addon.addon_service.name,
             collapsibleState: vscode.TreeItemCollapsibleState.None,
@@ -283,6 +286,7 @@ class Dyno extends HDPTreeItem {
     constructor(dyno, parent, opts) {
         super(dyno.name, "dyno", parent, opts);
         this.state = dyno.state;
+        this.appParent = parent.appParent;
         this.setOptions({
             tooltip: "Command: " + dyno.command,
             collapsibleState: vscode.TreeItemCollapsibleState.None,

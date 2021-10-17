@@ -162,7 +162,7 @@
 			},
 			{
 				"command": "hero-heroku.dyno.restart",
-				"title": "Retart",
+				"title": "Restart",
 				"icon": "$(debug-restart)"
 			},
 			{

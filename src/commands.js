@@ -174,7 +174,7 @@ function refreshBranch(tdp, app) {
     return tdp.refresh(app);
 }
 
-function scaleDyno(tdp, dyno) {
+function scaleDyno(tdp, dynoBranch) {
     let formations;
 
     let formID;
@@ -182,7 +182,7 @@ function scaleDyno(tdp, dyno) {
     let remainder = 0;
 
     logger("Scaling dyno");
-    Heroku.get("/apps/" + dyno.parent.name + "/formation")
+    Heroku.get("/apps/" + dynoBranch.parent.name + "/formation")
         .then(fList => fList.map(f => {
             remainder += f.quantity;
             return {
@@ -231,12 +231,12 @@ function scaleDyno(tdp, dyno) {
             };
 
             formQty = qty;
-            return Heroku.patch(`/apps/${dyno.parent.name}/formation/${formID}`, {
+            return Heroku.patch(`/apps/${dynoBranch.parent.name}/formation/${formID}`, {
                 quantity: formQty
             });
         }).then(() => {
             logger("Scaling done");
-            refreshBranch(tdp, dyno.parent);
+            refreshBranch(tdp, dynoBranch.parent);
         }).catch(err => {
             if(err.name === "HH-UserChoice") logger(err.message);
             throw err;
@@ -244,25 +244,26 @@ function scaleDyno(tdp, dyno) {
 }
 
 function restartDyno(tdp, dyno) {
-    let endpoint = `/apps/${dyno.parent.name}/dynos${dyno.name}`;
+    let endpoint = `/apps/${dyno.appParent.name}/dynos/${dyno.name}`;
     logger("Restarting dyno");
     Heroku.delete(endpoint).then(() => refreshBranch(tdp, dyno.parent));
 }
 
 function stopDyno(tdp, dyno) {
     logger("Stopping dyno");
-    Heroku.post(`/apps/${dyno.parent.name}/dynos/${dyno.name}/actions/stop`).then((d) => {
+    Heroku.post(`/apps/${dyno.appParent.name}/dynos/${dyno.name}/actions/stop`).then((d) => {
         logger(d);
-        refreshBranch(tdp, dyno.parent);
+        refreshBranch(tdp, dyno.appParent);
     }).catch(err => {
         logger(err);
     });
 }
 
 function logDyno(tdp, dyno) {
-    logger("Loggin dyno");
-    Heroku.post(`/apps/${dyno.parent.name}/log-sessions`, {
-        lines: 15,
+    logger("Logging dyno");
+    // MAYBE: Colour the output of the log file and allow it to be configurable with RegExs?
+    Heroku.post(`/apps/${dyno.appParent.name}/log-sessions`, {
+        lines: 30, // TODO: Change this to be configurable
         tail: true,
         source: "app",
         dyno: dyno.name
@@ -293,11 +294,14 @@ function logDyno(tdp, dyno) {
             handleInput: (data) => {} // incoming keystrokes
         };
         const terminal = vscode.window.createTerminal({
-            name: `${dyno.parent.name}/${dyno.name} Log`,
+            name: `${dyno.appParent.name}/${dyno.name} Log`,
             pty: pty
         });
         terminal.show(true);
         // node fetch the log url and pipe it to a stream that dumps it in a terminal
+    }).catch((err) => {
+        logger("Heroku Logger Failed: " + err);
+        return showErrorMessage("get a dyno log stream", err);
     });
 }
 
@@ -315,7 +319,7 @@ function showInfoMessage(message, ...actions) {
     return vscode.window.showInformationMessage(message, ...actions);
 }
 function showErrorMessage(message, error, ...actions) {
-    let readE = `${error.name ?? "Error"} ${error.code ?? error.statusCode ?? "(?)"}\n${error.message}`;
+    let readE = `${error?.name ?? "Error"} ${error?.code ?? error?.statusCode ?? "(?)"}\n${error?.message || "<no message>"}`;
     return vscode.window.showErrorMessage("Hero Heroku encountered an error while trying to " + message + ":\n" + readE, ...actions);
 }
 
