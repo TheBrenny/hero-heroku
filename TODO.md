@@ -16,6 +16,8 @@ A set of targets/milestone features that I'd like to see implemented into produc
 - [ ] Addon management
   - [ ] Provision new addons
   - [ ] Remove addons
+- [ ] Fix the bug where the tree doesn't load in a timely manner
+  - [ ] Even better: have it lazy load and show some tree item results as they respond
 
 ## Should Have
 
