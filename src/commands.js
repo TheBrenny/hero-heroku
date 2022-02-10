@@ -1,19 +1,25 @@
 const vscode = require('vscode');
+const which = require("which");
 const Heroku = require("./heroku");
 const promisify = require("util").promisify;
 const fetch = require("node-fetch");
-const exec = promisify(require('child_process').exec);
+const childProcess = require('child_process');
+const exec = promisify(childProcess.exec);
 const logger = require("./logger");
 const {
     Dyno,
     HerokuTreeProvider
 } = require("./herokuDataProvider");
 const Rendezvous = require("rendezvous-protocol");
+const https = require("https");
+
+const terminal = require("./terminal");
 
 const {
     head,
     sleep,
 } = require('./promutil');
+const {Stream, promises} = require('stream');
 
 function authenticate() {
     logger("Creating authorization");
@@ -71,33 +77,8 @@ function createDyno(tdp, app) {
         let rv = new Rendezvous(data.attach_url);
         await rv.connect();
 
-        let command = "";
-        const writeEmitter = new vscode.EventEmitter();
-        const pty = {
-            onDidWrite: writeEmitter.event,
-            open: () => {
-                logger("One-Off Dyno opened");
-                rv.on("data", (d) => {
-                    d = d.toString();
-                    writeEmitter.fire(d);
-                    if(d.trim() === "exit") {
-                        rv.end();
-                        terminal.dispose();
-                    }
-                });
-            },
-            close: () => {
-                logger("Dyno closed");
-                rv.end();
-                writeEmitter.dispose();
-            },
-            handleInput: async (data) => rv.write(data)
-        };
-        const terminal = vscode.window.createTerminal({
-            name: `${app.name}/${data.name} (One-off)`,
-            pty: pty
-        });
-        terminal.show(true);
+        const term = terminal.makeInteractiveTerminal(rv, `${app.name}/${data.name} (One-off)`);
+        term.show(true);
     }).catch(err => {
         if(err.name === "HH-UserChoice") logger(err.message);
         else throw err;
@@ -167,6 +148,52 @@ function updateConfigVars(tdp, app, vars) {
         }).catch((e) => {
             return showErrorMessage("update the Config Vars", e);
         });
+}
+
+async function deployViaGit(tdp, app) {
+    const gitUrl = new URL(app.git_url);
+    gitUrl.username = "heroheroku"; // My testing indicated that the username doesn't matter...
+    gitUrl.password = Heroku.getApiKey();
+
+    try {
+        // Create the passthru stream and the pty
+        let passThru = new Stream.PassThrough();
+        const term = terminal.makeStreamTerminal(passThru, `Deploying ${app.name}`);
+        term.show(false);
+
+        // Do all the git stuff
+        let gitArgs = [
+            "push",
+            gitUrl.toString(),
+            // "2>&1" // Redirect STDERR to STDOUT so we capture that in our term as well!
+        ];
+        let vsGitPath = vscode.workspace.getConfiguration("git").get("path");
+        vsGitPath = await (vsGitPath ? Promise.resolve(vsGitPath) : which("git"));
+        let gitProcess = childProcess.spawn(vsGitPath, gitArgs, {
+            cwd: vscode.workspace.workspaceFolders[0].uri.fsPath,
+        });
+
+        passThru.write(`[${new Date().toJSON()}] pushing to heroku...\n`);
+        gitProcess.stdout.pipe(passThru, {end: false});
+        gitProcess.stderr.pipe(passThru, {end: false});
+
+        gitProcess.on("error", (err) => {
+            console.error(err);
+            passThru.write("[nodejs error]\n" + err.message);
+        });
+        gitProcess.on("close", (code) => {
+            if(code !== 0) {
+                console.log("bad exit code: " + code);
+            }
+            refreshBranch(tdp, app);
+            passThru.write(`[${new Date().toJSON()}] Done!\n`);
+            passThru.end();
+            term.name = "Deployed " + app.name;
+            console.log("Done!");
+        });
+    } catch(err) {
+        console.error(err);
+    }
 }
 
 function refreshBranch(tdp, app) {
@@ -271,37 +298,35 @@ function logDyno(tdp, dyno) {
         let logUrl = data.logplex_url;
         let logStream = await fetch(logUrl);
 
-        const writeEmitter = new vscode.EventEmitter();
-        const pty = {
-            onDidWrite: writeEmitter.event,
-            open: async () => {
-                logger("Log stream opened");
-                try {
-                    for await(const chunk of logStream.body) {
-                        if(chunk.toString() !== "\u0000") writeEmitter.fire(chunk.toString().replace(/\n/gm, "\r\n"));
-                    }
-                } catch(err) {
-                    console.error(err);
-                    logger(err);
-                }
-            },
-            close: () => {
-                // Close the fetch stream
-                logger("Log stream closed");
-                logStream.close();
-                writeEmitter.dispose();
-            },
-            handleInput: (data) => {} // incoming keystrokes
-        };
-        const terminal = vscode.window.createTerminal({
-            name: `${dyno.appParent.name}/${dyno.name} Log`,
-            pty: pty
-        });
-        terminal.show(true);
-        // node fetch the log url and pipe it to a stream that dumps it in a terminal
+        const term = terminal.makeStreamTerminal(logStream.body, `${dyno.appParent.name}/${dyno.name} Log`);
+        term.show(true);
     }).catch((err) => {
         logger("Heroku Logger Failed: " + err);
-        return showErrorMessage("get a dyno log stream", err);
+
+        if(err.code === "CERT_HAS_EXPIRED") {
+            err.message = "NodeJS is reporting an expired certificate.\n\nSet 'http.systemCertificates' to 'false' in your vscode settings to fix this. If the problem persists, report this on the hero-heroku github page.";
+            return showErrorMessage("get a dyno log stream", err, "Open Settings", "Open GitHub Issue")
+                .then(choice => {
+                    if(choice === undefined) return;
+                    if(choice === "Open Settings") {
+                        vscode.commands.executeCommand('workbench.action.openSettings', 'http.systemCertificates');
+                    } else if(choice === "Open GitHub Issue") {
+                        vscode.env.openExternal("https://github.com/thebrenny/hero-heroku/issues/new")
+                            .then(success => {
+                                if(!success) throw {
+                                    name: "HH-UserChoice",
+                                    message: "hero-heroku: User didn't want to open app."
+                                };
+                            })
+                            .catch(error => {
+                                if(error.name === "HH-UserChoice") logger(error.message);
+                                else throw error;
+                            });
+                    }
+                });
+        } else {
+            return showErrorMessage("get a dyno log stream", err);
+        }
     });
 }
 
@@ -335,6 +360,7 @@ const commands = {
         getConfigVars: getConfigVars,
         tryUpdateConfigVars: tryUpdateConfigVars,
         updateConfigVars: updateConfigVars,
+        deployViaGit: deployViaGit
     },
     dyno: {
         create: createDyno,

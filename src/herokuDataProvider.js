@@ -151,6 +151,7 @@ class App extends HDPTreeItem {
         super(app.name, "app", parent, opts);
         this.id = app.id;
         this.web_url = app.web_url;
+        this.git_url = app.git_url;
         this.state = getBestState(app.dynos);
         this.dynos = app.dynos;
         this.addons = app.addons;

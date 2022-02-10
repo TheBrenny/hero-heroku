@@ -151,6 +151,12 @@
 				"enablement": "editorLangId == dotenv || editorLangId == shellscript"
 			},
 			{
+				"command": "hero-heroku.app.deploy.git",
+				"title": "Deploy via Git",
+				"icon": "$(cloud-upload)",
+				"category": "Hero Heroku"
+			},
+			{
 				"command": "hero-heroku.dyno.create",
 				"title": "Create New Dyno",
 				"icon": "$(terminal)"
@@ -202,9 +208,14 @@
 					"group": "inline@3"
 				},
 				{
-					"command": "hero-heroku.app.configVars",
+					"command": "hero-heroku.app.deploy.git",
 					"when": "view == hero-heroku && viewItem == app",
 					"group": "actions@1"
+				},
+				{
+					"command": "hero-heroku.app.configVars",
+					"when": "view == hero-heroku && viewItem == app",
+					"group": "actions@2"
 				},
 				{
 					"command": "hero-heroku.dyno.restart",
@@ -254,7 +265,8 @@
 	},
 	"dependencies": {
 		"heroku-client": "^3.1.0",
-		"node-fetch": "^2.6.5",
-		"rendezvous-protocol": "^1.0.0"
+		"node-fetch": "^2.6.7",
+		"rendezvous-protocol": "^1.0.0",
+		"which": "^2.0.2"
 	}
 }
