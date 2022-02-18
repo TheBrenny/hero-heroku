@@ -47,8 +47,23 @@ function authenticate() {
 }
 
 function refreshTreeView(tdp) {
+    tdp = tdp ?? HerokuTreeProvider.instance;
     logger("Refreshing app tree");
     return tdp.refresh();
+}
+function refreshDirtyTreeView(tdp) {
+    tdp = tdp ?? HerokuTreeProvider.instance;
+    logger("Refreshing dirty app tree");
+    let dirtyElements = tdp.cache.all // get all
+        .map(e => e.rootParent) // get their roots
+        .filter((e, i, a) => e.dirty && a.indexOf(e) === i); // keep if they're dirty and unique
+    dirtyElements.forEach(e => tdp.refresh(e));
+    return dirtyElements.length;
+}
+function refreshBranch(tdp, app) {
+    tdp = HerokuTreeProvider.instance;
+    logger("Refreshing TDP branch");
+    return tdp.refresh(app);
 }
 
 function createDyno(tdp, app) {
@@ -196,11 +211,6 @@ async function deployViaGit(tdp, app) {
     }
 }
 
-function refreshBranch(tdp, app) {
-    logger("Refreshing TDP branch");
-    return tdp.refresh(app);
-}
-
 function scaleDyno(tdp, dynoBranch) {
     let formations;
 
@@ -263,7 +273,7 @@ function scaleDyno(tdp, dynoBranch) {
             });
         }).then(() => {
             logger("Scaling done");
-            refreshBranch(tdp, dynoBranch.parent);
+            refreshBranch(tdp, dynoBranch.rootParent);
         }).catch(err => {
             if(err.name === "HH-UserChoice") logger(err.message);
             throw err;
@@ -351,6 +361,7 @@ function showErrorMessage(message, error, ...actions) {
 const commands = {
     authenticate,
     refreshTreeView,
+    refreshDirtyTreeView,
     showInfoMessage,
     showErrorMessage,
     app: {

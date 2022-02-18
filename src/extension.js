@@ -16,9 +16,12 @@ function activate(context) {
 
 	logger("Creating TDP");
 	let tdp = new HerokuTreeProvider();
-	vscode.window.createTreeView("hero-heroku", {
+	let tv = vscode.window.createTreeView("hero-heroku", {
+		showCollapseAll: true,
 		treeDataProvider: tdp
 	});
+	tdp.setTreeView(tv);
+	// vscode.window.registerTreeDataProvider("hero-heroku", tdp);
 
 	logger("Creating Config Change Listener");
 	vscode.workspace.onDidChangeConfiguration((e) => {
@@ -62,7 +65,7 @@ function activate(context) {
 function createRefreshInterval() {
 	logger("Refresh interval created");
 	let refreshCallsPerMinute = vscode.workspace.getConfiguration("hero-heroku").get("apiCalls");
-	tdpRefreshInterval = setInterval(commands.refreshTreeView, 60000 / refreshCallsPerMinute); // every minute
+	tdpRefreshInterval = setInterval(commands.refreshDirtyTreeView, 60000 / refreshCallsPerMinute); // every minute
 }
 
 function destroyRefreshInterval() {
