@@ -1,5 +1,8 @@
 # Change Log
 
+- v1.6.0
+  - Refactored the Tree Items and Tree Data Provider, so everything should be a lot more smoother, and less complex.
+  - Added a Github action to automatically publish the extension to VSCE and OVSX.
 - v1.5.0
   - Rewrote the tree building ... algorithm? It should now be much faster, and also allow for individual branches to be updated independently of the whole tree. (Try it out by openning an app's web url!)
   - Added the ability to grab Config Vars
