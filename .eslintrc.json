@@ -19,6 +19,7 @@
 		"no-undef": "warn",
 		"no-unreachable": "warn",
 		"no-unused-vars": "off",
+		"no-loop-func": "off",
 		"constructor-super": "warn",
 		"valid-typeof": "warn"
 	}
