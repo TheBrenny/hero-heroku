@@ -38,17 +38,20 @@ class HerokuTreeProvider {
     }
     async refresh(element) {
         logger("Firing element change");
-        if(element !== null) {
+        if(element != null) {
             element = element.rootNode;
+            element.makeDirty();
             await element.refresh();
         } else {
-            // This simulates an entire refresh of the tree - but is this what we actually want to do, or do we want to propegate the refreshes down the chain?
-            this.rootNode.children.splice(0, this.rootNode.children.length);
+            await Promise.all(this.rootNode.children.map(child => {
+                child.makeDirty();
+                return child.refresh();
+            }));
         }
         this._changeEvent.fire(element);
     }
     async reveal() {
-        console.warn("Not implemented");
+        logger("Reveal not implemented");
     }
 
     async onDidChangeSelection(event) {
@@ -79,10 +82,20 @@ class HerokuTreeProvider {
     }
 }
 
-class HDPItem {
-    constructor(parent, name) {
-        this.name = name;
+class Parentable {
+    constructor(parent) {
         this.parent = parent ?? null;
+    }
+    get rootNode() {
+        if(this.parent) return this.parent.rootNode;
+        return this;
+    }
+}
+
+class HDPItem extends Parentable {
+    constructor(parent, name) {
+        super(parent);
+        this.name = name;
         this._dirty = true;
         this._treeItem = new vscode.TreeItem(this.name, vscode.TreeItemCollapsibleState.Collapsed);
         this._treeItem.id = this.hID;
@@ -97,7 +110,7 @@ class HDPItem {
     }
     makeDirty() {
         this._dirty = true;
-        this.parent.makeDirty();
+        this.parent?.makeDirty();
     }
 }
 
@@ -166,12 +179,13 @@ class Pipeline extends HDPItem {
 
     get state() {
         // MAYBE: Get the state from a user-defined stage?
-        return this.branches.production?.state ?? getBestDynoState(Object.values(this.branches).map(b => b.state)); // TODO: NodeJS >16.6.0 dynoStates.at(-1);
+        return this.branches.production?.state ?? getBestDynoState(Object.values(this.branches).map(b => b.state));
     }
 }
 
-class PipelineStage {
+class PipelineStage extends Parentable {
     constructor(parent, stage) {
+        super(parent);
         this.name = parent.name + " - " + stage;
         this._treeItem = new vscode.TreeItem(correctCase(stage), vscode.TreeItemCollapsibleState.Collapsed);
         this._treeItem.contextValue = "pipelineStage";
@@ -344,8 +358,9 @@ class App extends HDPItem {
     }
 }
 
-class AddonBranch {
+class AddonBranch extends Parentable {
     constructor(parent, opts) {
+        super(parent);
         this.name = parent.name + " Addons";
         this._treeItem = new vscode.TreeItem("Addons", opts ?? vscode.TreeItemCollapsibleState.Collapsed);
         this._treeItem.contextValue = "addonBranch";
@@ -367,8 +382,9 @@ class AddonBranch {
     async refresh() {}
 }
 
-class DynoBranch {
+class DynoBranch extends Parentable {
     constructor(parent, opts) {
+        super(parent);
         this.name = parent.name + " Dynos";
         this._treeItem = new vscode.TreeItem("Dynos", opts ?? vscode.TreeItemCollapsibleState.Collapsed);
         this._treeItem.contextValue = "dynoBranch";
@@ -442,11 +458,14 @@ class Dyno extends HDPItem {
     }
 }
 
-const dynoStates = ["up", "starting", "idle", "crashed", "down"];
-const addonStates = ["provisioned", "provisioning", "", "", "deprovisioned"];
+const stateLists = {
+    dyno: ["up", "starting", "idle", "crashed", "down"],
+    addon: ["provisioned", "provisioning", "", "", "deprovisioned"]
+};
+
 function getBestState(states, stateOrder) {
     if(!Array.isArray(states)) states = [states];
-    stateOrder = stateOrder || dynoStates;
+    stateOrder = stateOrder || stateLists.dyno;
     let state = stateOrder.length - 1;
     for(let i = 0; i < states.length && state > 0; i++) {
         const dyState = stateOrder.indexOf(states[i]);
@@ -455,13 +474,13 @@ function getBestState(states, stateOrder) {
     return stateOrder[state];
 }
 function getBestAppState(states) {
-    return getBestState(states, dynoStates);
+    return getBestState(states, stateLists.dyno);
 }
 function getBestDynoState(states) {
-    return getBestState(states, dynoStates);
+    return getBestState(states, stateLists.dyno);
 }
 function getBestAddonState(states) {
-    return getBestState(states, addonStates);
+    return getBestState(states, stateLists.addon);
 }
 function stateColorLookup(state) {
     return "heroheroku.dynoState." + state;
@@ -470,7 +489,7 @@ function getDynoColor(state) {
     return new vscode.ThemeColor(stateColorLookup(state));
 }
 function getAddonColor(state) {
-    return new vscode.ThemeColor(stateColorLookup(dynoStates[addonStates.indexOf(state)]));
+    return new vscode.ThemeColor(stateColorLookup(stateLists.dyno[stateLists.addon.indexOf(state)]));
 }
 
 function pluralize(count, noun) {

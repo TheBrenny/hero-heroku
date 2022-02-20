@@ -47,21 +47,7 @@ function authenticate() {
         });
 }
 
-function refreshTreeView(tdp) {
-    tdp = tdp ?? HerokuTreeProvider.instance;
-    logger("Refreshing app tree");
-    return tdp.refresh();
-}
-function refreshDirtyTreeView(tdp) {
-    tdp = tdp ?? HerokuTreeProvider.instance;
-    logger("Refreshing dirty app tree");
-    let dirtyElements = tdp.cache.all // get all
-        .map(e => e.rootParent) // get their roots
-        .filter((e, i, a) => e.dirty && a.indexOf(e) === i); // keep if they're dirty and unique
-    dirtyElements.forEach(e => tdp.refresh(e));
-    return dirtyElements.length;
-}
-function refreshBranch(tdp, app) {
+function refreshTreeView(tdp, app) {
     tdp = tdp ?? HerokuTreeProvider.instance;
     logger("Refreshing TDP branch");
     return tdp.refresh(app);
@@ -88,7 +74,7 @@ function createDyno(tdp, app) {
         });
     }).then(async (data) => {
         logger("Creating done");
-        refreshBranch(tdp, app);
+        refreshTreeView(tdp, app);
 
         let rv = new Rendezvous(data.attach_url);
         await rv.connect();
@@ -201,7 +187,7 @@ async function deployViaGit(tdp, app) {
             if(code !== 0) {
                 console.log("bad exit code: " + code);
             }
-            refreshBranch(tdp, app);
+            refreshTreeView(tdp, app);
             passThru.write(`[${new Date().toJSON()}] Done!\n`);
             passThru.end();
             term.name = "Deployed " + app.name;
@@ -220,7 +206,7 @@ function scaleDyno(tdp, dynoBranch) {
     let remainder = 0;
 
     logger("Scaling dyno");
-    Heroku.get(`/apps/${dynoBranch.parent.hID}/formation`)
+    Heroku.get(`/apps/${dynoBranch.appParent.hID}/formation`)
         .then(fList => fList.map(f => {
             remainder += f.quantity;
             return {
@@ -269,12 +255,12 @@ function scaleDyno(tdp, dynoBranch) {
             };
 
             formQty = qty;
-            return Heroku.patch(`/apps/${dynoBranch.parent.hID}/formation/${formID}`, {
+            return Heroku.patch(`/apps/${dynoBranch.appParent.hID}/formation/${formID}`, {
                 quantity: formQty
             });
         }).then(() => {
             logger("Scaling done");
-            refreshBranch(tdp, dynoBranch.rootParent);
+            refreshTreeView(tdp, dynoBranch.rootNode);
         }).catch(err => {
             if(err.name === "HH-UserChoice") logger(err.message);
             throw err;
@@ -287,14 +273,14 @@ function restartDyno(tdp, dyno) {
         endpoint += `/${dyno.hID}`;
     }
     logger("Restarting dyno");
-    Heroku.delete(endpoint).then(() => refreshBranch(tdp, dyno.parent));
+    Heroku.delete(endpoint).then(() => refreshTreeView(tdp, dyno.appParent));
 }
 
 function stopDyno(tdp, dyno) {
     logger("Stopping dyno");
     Heroku.post(`/apps/${dyno.appParent.hID}/dynos/${dyno.hID}/actions/stop`).then((d) => {
         logger(d);
-        refreshBranch(tdp, dyno.appParent);
+        refreshTreeView(tdp, dyno.appParent);
     }).catch(err => {
         logger(err);
     });
@@ -307,7 +293,7 @@ function logDyno(tdp, dyno) {
         lines: 30, // TODO: Change this to be configurable
         tail: true,
         source: "app",
-        dyno: dyno.hID
+        dyno: dyno.name
     }).then(async (data) => {
         let logUrl = data.logplex_url;
         let logStream = await fetch(logUrl);
@@ -348,7 +334,7 @@ function pingAndRefresh(tdp, url, tdpElement) {
     return Promise.resolve()
         .then(() => head(url))
         .then(() => sleep(1000))
-        .then(() => refreshBranch(tdp, tdpElement))
+        .then(() => refreshTreeView(tdp, tdpElement))
         .catch((e) => {
             return showErrorMessage("ping the app", e);
         });
@@ -365,13 +351,11 @@ function showErrorMessage(message, error, ...actions) {
 const commands = {
     authenticate,
     refreshTreeView,
-    refreshDirtyTreeView,
     showInfoMessage,
     showErrorMessage,
     app: {
         openUrl: openAppUrl,
         openDashboard: openAppDashboard,
-        refreshApp: refreshBranch,
         getConfigVars: getConfigVars,
         tryUpdateConfigVars: tryUpdateConfigVars,
         updateConfigVars: updateConfigVars,
