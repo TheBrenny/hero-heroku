@@ -3,73 +3,74 @@ const vscode = require('vscode');
 const Heroku = require('./heroku');
 const logger = require('./logger');
 
-const dynoStates = ["up", "starting", "idle", "crashed", "down"];
-const addonStates = ["provisioned", "provisioning", "", "", "deprovisioned"];
-
 let htpInstance = null;
 class HerokuTreeProvider {
     constructor(_workspaceRoot) {
         if(!!htpInstance) return htpInstance;
         htpInstance = this;
 
+        this.treeView = null;
         this._changeEvent = new vscode.EventEmitter();
         this.onDidChangeTreeData = this._changeEvent.event;
         this.rootNode = {
-            children: [],
-            everything: []
+            _children: [],
+            get children() {return this._children;},
+            allApps: [],
         };
     }
-
-    refresh(element) {
-        logger("Firing element change");
-        element?.makeDirty();
-        this._changeEvent.fire(element);
+    setTreeView(tv) {
+        this.treeView = tv;
     }
 
-    async getTreeItem(element) {
+    async getTreeItem(element) { // returns the visual representation of the element
         logger("Getting tree item: " + element?.name);
-
-        if(typeof element === "string") {
-            // we only want to find root items for now.
-            // MAYBE we should cache all items in the tree?
-            element = this.rootNode.children.items.find(i => i.name === element);
-        }
-
-        // refresh item if dirty
-        if(element.dirty) {
-            await element.refresh();
-        }
-
-        return element;
-    }
-
-    async getParent(element) {
-        logger("Getting parent of: " + element?.name);
-
-        return element.parent;
+        return element?.treeItem;
     }
 
     async getChildren(element) {
         logger("Getting children of: " + element?.name);
 
         if(!element) {
-            this.rootNode.children = await this.getRootItems();
-            return this.rootNode.children;
+            if(this.rootNode.children.length > 0) return this.rootNode.children;
+            return await this.getRootItems();
         }
         return element.children;
     }
+    async refresh(element) {
+        logger("Firing element change");
+        if(element !== null) {
+            element = element.rootNode;
+            await element.refresh();
+        } else {
+            // This simulates an entire refresh of the tree - but is this what we actually want to do, or do we want to propegate the refreshes down the chain?
+            this.rootNode.children.splice(0, this.rootNode.children.length);
+        }
+        this._changeEvent.fire(element);
+    }
+    async reveal() {
+        console.warn("Not implemented");
+    }
+
+    async onDidChangeSelection(event) {
+        if(event.selection[0].onSelect) return event.selection[0].onSelect();
+    }
 
     async getRootItems() {
-        let apps = (await Heroku.get("/apps"));
-        apps = apps.map(a => treeItemGenerators.generateApp(a));
-        apps = await Promise.all(apps);
+        let apps = await Heroku.get(`/apps`);
+        apps = apps.map(appInfo => new App(null, appInfo));
+        this.rootNode.allApps = apps.slice();
 
-        let pipelines = await Heroku.get("/pipelines");
-        pipelines = pipelines.map(pipe => treeItemGenerators.generatePipeline(pipe, apps));
-        pipelines = await Promise.all(pipelines);
+        let pipelines = await Heroku.get(`/pipelines`);
+        pipelines = pipelines.map(pipelineInfo => new Pipeline(null, pipelineInfo));
+        await Promise.all(this.rootNode.allApps.map(app => app.refresh()));
+        await Promise.all(pipelines.map(pipeline => pipeline.refresh(apps)));
 
-        // This isn't all apps, only the standalones and pipelines -- the root items
-        return [...apps, ...pipelines].sort((a, b) => a.name.localeCompare(b.name));
+        this.rootNode.children.splice(0, this.rootNode.children.length);
+        this.rootNode.children.push(...[
+            ...apps,
+            ...pipelines
+        ].sort((a, b) => a.name.localeCompare(b.name)));
+        return this.rootNode.children;
     }
 
     static get instance() {
@@ -78,151 +79,124 @@ class HerokuTreeProvider {
     }
 }
 
-class HDPTreeItem extends vscode.TreeItem {
-    constructor(name, context, parent, opts) {
-        super(name);
-        this.setName(name);
-        this.setContext(context);
-        this.setParent(parent);
-        this.setOptions(opts);
-
-        this.children = [];
-        this.dirty = false;
+class HDPItem {
+    constructor(parent, name) {
+        this.name = name;
+        this.parent = parent ?? null;
+        this._dirty = true;
+        this._treeItem = new vscode.TreeItem(this.name, vscode.TreeItemCollapsibleState.Collapsed);
+        this._treeItem.id = this.hID;
     }
-    setName(name) {
-        this.label = this.name = name;
-        return this;
+    get children() {return [];}
+    get treeItem() {return this._treeItem;}
+    async refresh() {
+        this._dirty = false;
     }
-    setContext(context) {
-        this.contextValue = context;
-        return this;
+    get dirty() {
+        return this._dirty;
     }
-    setParent(parent) {
-        if((this.parent ?? null) === parent) return this;
-        this.parent = parent;
-        this.parent?.addChild(this);
-        return this;
-    }
-    setOptions(opts) {
-        this.tooltip = opts?.tooltip;
-        this.collapsibleState = opts?.collapsibleState ?? vscode.TreeItemCollapsibleState.Collapsed;
-        this.iconPath = opts?.iconPath;
-    }
-
-    addChild(child) {
-        if(Array.isArray(child)) {
-            child.forEach(c => this.addChild(c));
-            return this;
-        }
-        if(this.children.includes(child)) return this;
-
-        this.children.push(child);
-        child.setParent(this);
-        return this;
-    }
-
-    removeChild(child) {
-        if(!this.children.includes(child)) return this;
-
-        this.children = this.children.filter(c => c !== child);
-        child.setParent(null);
-        return this;
-    }
-
     makeDirty() {
-        if(this.dirty) return this;
-        this.dirty = true;
-        this.parent?.makeDirty();
-        this.children.forEach(c => c?.makeDirty());
-        return this;
-    }
-
-    async refresh() {}
-}
-
-class GenericItem extends HDPTreeItem {
-    constructor(name, context, parent, opts) {
-        super(name, context, parent, opts);
+        this._dirty = true;
+        this.parent.makeDirty();
     }
 }
 
-class App extends HDPTreeItem {
-    constructor(app, parent, opts) {
-        super(app.name, "app", parent, opts);
-        this.id = app.id;
-        this.web_url = app.web_url;
-        this.git_url = app.git_url;
-        this.state = getBestState(app.dynos);
-        this.dynos = app.dynos;
-        this.addons = app.addons;
+class Pipeline extends HDPItem {
+    constructor(parent, plInfo) {
+        super(parent, plInfo.name);
+        this.hID = plInfo.id;
+        this._treeItem.contextValue = "pipeline";
+        this.branches = {}; // stage -> PipelineStage
+        this.couplings = {}; // stage -> array of apps
+    }
+    get children() {
+        return (async () => {
+            if(!this.dirty && !!this.branches.all) return this.branches.all;
+            await this.refresh();
+            this.branches.all = [
+                this.branches.test,
+                this.branches.review,
+                this.branches.development,
+                this.branches.staging,
+                this.branches.production
+            ].filter(b => !!b);
+            return this.branches.all;
+        })();
+    }
+    get treeItem() {
+        return (async () => {
+            if(this.dirty) await this.refresh();
+            this._treeItem.tooltip = pluralize(Object.values(this.couplings).length, "stage");
+            this._treeItem.iconPath = new vscode.ThemeIcon("server", getDynoColor(this.state));
+            return this._treeItem;
+        })();
+    }
+    async refresh(allApps, couplings) { // we can splice from this array
+        // MAYBE: We should handle the case where we don't get an allApps array
+        allApps = allApps ?? HerokuTreeProvider.instance.rootNode.allApps.slice();
 
-        this.setOptions({
-            tooltip: `State: ${this.state}`,
-            iconPath: App.getIconPath(this.state)
-        });
+        // if we get couplings passed to us, then use those bc it probably saved energy getting them
+        // otherwise get our own couplings
+        couplings = couplings ?? await Heroku.get(`/pipelines/${this.hID}/pipeline-couplings`);
 
-        // Create the dyno tree now!
-        this.addChild(new DynoBranch(this));
-        if(this.addons.length > 0) {
-            this.addChild(new AddonBranch(this));
+        // splice our apps from all apps -- this might need to change when we need to refresh without all apps?
+        for(let c of couplings) {
+            let app = allApps.find(a => a.hID === c.app.id);
+            if(!app) continue; // FIXME: this shouldn't be a continue, because we'll need to add it to the stage and all apps!
+            if(this.couplings[c.stage]?.includes(app)) continue;
+
+            allApps.splice(allApps.indexOf(app), 1);
+
+            if(!this.branches[c.stage]) this.branches[c.stage] = new PipelineStage(this, c.stage);
+            this.couplings[c.stage] = this.couplings[c.stage] ?? [];
+            this.couplings[c.stage].push(app);
+            app.parent = this;
         }
+
+        // if stages have no apps, then delete them
+        for(let stage in this.branches) {
+            if(!this.couplings[stage] || this.couplings[stage].length === 0) {
+                delete this.branches[stage];
+                delete this.couplings[stage];
+            }
+        }
+
+        return await super.refresh();
     }
 
-    async refresh() {
-        if(!this.dirty) return this;
-
-        // Definitely not the best way to do this! 😭
-        Object.assign(this, (await treeItemGenerators.generateApp(this)));
-        this.dirty = false;
-        return this;
-    }
-
-    static getIconPath(dynoState) {
-        return path.join(__dirname, "..", "res", "dyno_states", "heroku-dyno-" + dynoState + ".svg");
-    }
-}
-
-class Pipeline extends HDPTreeItem {
-    constructor(pipeline, parent, opts) {
-        super(pipeline.name, "pipeline", parent, opts);
-        this.allApps = Object.values(pipeline.stages).reduce((a, c) => a = a.concat(c), []);
-        this.state = getBestState(this.allApps);
-        this.stages = Object.keys(pipeline.stages).map(stage => {
-            return new PipelineStage(stage, this, {
-                apps: pipeline.stages[stage],
-            });
-        });
-
-        this.addChild(this.stages);
-        this.setOptions({
-            tooltip: pluralize(this.allApps.length, "app"),
-            iconPath: new vscode.ThemeIcon("server", new vscode.ThemeColor("heroheroku.dynoState." + this.state)),
-        });
-    }
-
-    async refresh() {
-        if(!this.dirty) return this;
-
-        // This is even worse! What happens when a new app is added?!
-        Object.assign(this, (await treeItemGenerators.generatePipeline(this, this.allApps)));
-        this.dirty = false;
-        return this;
+    get state() {
+        // MAYBE: Get the state from a user-defined stage?
+        return this.branches.production?.state ?? getBestDynoState(Object.values(this.branches).map(b => b.state)); // TODO: NodeJS >16.6.0 dynoStates.at(-1);
     }
 }
 
-class PipelineStage extends HDPTreeItem {
-    constructor(stage, parent, opts) {
-        super(stage, "stage", parent, opts);
+class PipelineStage {
+    constructor(parent, stage) {
+        this.name = parent.name + " - " + stage;
+        this._treeItem = new vscode.TreeItem(correctCase(stage), vscode.TreeItemCollapsibleState.Collapsed);
+        this._treeItem.contextValue = "pipelineStage";
+        this.pipeline = parent;
         this.stage = stage;
-        this.setName((stage.substr(0, 1).toUpperCase() + stage.substr(1).toLowerCase()));
-        this.apps = opts.apps;
-        this.state = getBestState(opts.apps);
+    }
+    get children() {
+        return (async () => {
+            if(this.pipeline.dirty) await this.pipeline.refresh();
+            return this.apps;
+        })();
+    }
+    get treeItem() {
+        return (async () => {
+            this._treeItem.tooltip = pluralize(this.apps.length ?? 0, "app");
+            this._treeItem.iconPath = PipelineStage.getStageImage(this.stage, this.state);
+            return this._treeItem;
+        })();
+    }
 
-        this.addChild(this.apps);
-        this.setOptions({
-            tooltip: pluralize(this.apps.length, "app"),
-            iconPath: PipelineStage.getStageImage(stage, this.state),
-        });
+    get apps() {
+        return this.pipeline.couplings[this.stage];
+    }
+    get state() {
+        return getBestAppState(this.apps.map(a => a.state));
     }
 
     static getStageImage(stage, state) {
@@ -239,115 +213,279 @@ class PipelineStage extends HDPTreeItem {
     }
 }
 
-class AddonBranch extends HDPTreeItem {
-    constructor(parent, opts) {
-        super("Addons", "addonBranch", parent, opts);
-        // this.state = getBestState(addon.apps);
-        this.appParent = parent;
-        this.setOptions({
-            iconPath: new vscode.ThemeIcon("empty-window")
-        });
+class App extends HDPItem {
+    constructor(parent, herokuAppInfo) {
+        super(parent, herokuAppInfo.name);
+        this.hID = herokuAppInfo.id;
+        this.gitUrl = herokuAppInfo.git_url;
+        this.webUrl = herokuAppInfo.web_url;
+        this.dynos = [];
+        this.addons = [];
+        this.branches = {
+            dyno: new DynoBranch(this),
+            addon: new AddonBranch(this),
+        };
 
-        this.addChild(parent.addons.map(a => new Addon(a, this)));
+        this._treeItem.contextValue = "app";
+
+        this._state = null;
+        this._addonState = null;
+    }
+    get children() {
+        return (async () => {
+            if(this.dirty) await this.refresh();
+            return [this.branches.dyno, this.branches.addon];
+        })();
+    }
+    get treeItem() {
+        return (async () => {
+            if(this.dirty) await this.refresh();
+            this._treeItem.tooltip = "State: " + this.state;
+            this._treeItem.iconPath = App.getIconPath(this.state);
+            return this._treeItem;
+        })();
+    }
+    async refresh() {
+        let [dynos, addons] = await Promise.all([
+            Heroku.get(`/apps/${this.hID}/dynos`),
+            Heroku.get(`/apps/${this.hID}/addons`)
+        ]);
+
+        let refreshPromises = [];
+
+        if(this.dynos.length === 0) this.dynos.push(...dynos.map(d => new Dyno(this, d)));
+        else {
+            let dynosToAdd = [];
+            let dynosToUpdate = [];
+            let dynosToRemove = this.dynos.slice();
+            let i = 0;
+            while(i < dynosToRemove.length) {
+                let dyno = dynosToRemove[i];
+                let herokuIndex = dynos.findIndex(d => d.id === dyno.hID);
+                if(herokuIndex !== -1) { // Dyno still exists
+                    let herokuDyno = dynos.splice(herokuIndex, 1)[0];
+                    dynosToUpdate.push([dyno, herokuDyno]);
+                    dynosToRemove.shift();
+                    i--;
+                }
+                i++;
+            }
+
+            for(let herokuDyno of dynosToAdd) {
+                let dyno = new Dyno(this, herokuDyno);
+                this.dynos.push(dyno);
+            }
+            for(let [dyno, herokuDyno] of dynosToUpdate) {
+                refreshPromises.push(dyno.refresh(herokuDyno));
+            }
+            for(let dyno of dynosToRemove) {
+                this.dynos.splice(this.dynos.indexOf(dyno), 1);
+            }
+        }
+
+        if(this.addons.length === 0) this.addons.push(...addons.map(a => new Addon(this, a)));
+        else {
+            let addonsToAdd = [];
+            let addonsToUpdate = [];
+            let addonsToRemove = this.dynos.slice();
+            let i = 0;
+            while(i < addonsToRemove.length) {
+                let addon = addonsToRemove[i];
+                let herokuIndex = addons.findIndex(a => a.id === addon.hID);
+                if(herokuIndex !== -1) { // Dyno still exists
+                    let herokuAddon = addons.splice(herokuIndex, 1)[0];
+                    addonsToUpdate.push([addon, herokuAddon]);
+                    addonsToRemove.shift();
+                    i--;
+                }
+                i++;
+            }
+
+            for(let herokuAddon of addonsToAdd) {
+                let addon = new Dyno(this, herokuAddon);
+                this.addons.push(addon);
+            }
+            for(let [addon, herokuAddon] of addonsToUpdate) {
+                refreshPromises.push(addon.update(herokuAddon));
+            }
+            for(let addon of addonsToRemove) {
+                this.addons.splice(this.addons.indexOf(addon), 1);
+            }
+        }
+
+        await Promise.all(refreshPromises);
+        this.deleteCaches();
+        await Promise.all([
+            this.branches.dyno.refresh(),
+            this.branches.addon.refresh(),
+        ]);
+        return await super.refresh();
+    }
+
+    get state() {
+        if(this._state !== null) return this._state;
+        this._state = getBestDynoState(this.dynos.map(d => d.state));
+        return this._state;
+    }
+    get addonState() {
+        if(this._addonState !== null) return this._addonState;
+        this._addonState = getBestAddonState(this.addons.map(a => a.state));
+        return this._addonState;
+    }
+
+    deleteCaches() {
+        this._state = null;
+        this._addonState = null;
+    }
+
+    static getIconPath(dynoState) {
+        if(dynoState === "unknown") return new vscode.ThemeIcon("server");
+        return path.join(__dirname, "..", "res", "dyno_states", "heroku-dyno-" + dynoState + ".svg");
     }
 }
 
-class DynoBranch extends HDPTreeItem {
+class AddonBranch {
     constructor(parent, opts) {
-        super("Dynos", "dynoBranch", parent, opts);
-        // this.state = getBestState(addon.apps);
+        this.name = parent.name + " Addons";
+        this._treeItem = new vscode.TreeItem("Addons", opts ?? vscode.TreeItemCollapsibleState.Collapsed);
+        this._treeItem.contextValue = "addonBranch";
         this.appParent = parent;
-        this.setOptions({
-            iconPath: new vscode.ThemeIcon("server-process", new vscode.ThemeColor(Dyno.stateColorLookup(parent.state)))
-        });
-
-        this.addChild(parent.dynos.map(d => new Dyno(d, this)));
-        // MAYBE: add a "Create Dyno" action?
     }
+    get children() {
+        return (async () => {
+            if(this.appParent.dirty) await this.appParent.refresh();
+            return this.appParent.addons;
+        })();
+    }
+    get treeItem() {
+        return (async () => {
+            this._treeItem.tooltip = pluralize(this.appParent.addons.length ?? 0, "addon");
+            this._treeItem.iconPath = new vscode.ThemeIcon("empty-window", getAddonColor(this.appParent.addonState));
+            return this._treeItem;
+        })();
+    }
+    async refresh() {}
 }
 
-class Addon extends HDPTreeItem {
-    constructor(addon, parent, opts) {
-        super(addon.name, "addon", parent, opts);
+class DynoBranch {
+    constructor(parent, opts) {
+        this.name = parent.name + " Dynos";
+        this._treeItem = new vscode.TreeItem("Dynos", opts ?? vscode.TreeItemCollapsibleState.Collapsed);
+        this._treeItem.contextValue = "dynoBranch";
+        this.appParent = parent;
+    }
+    get children() {
+        return (async () => {
+            if(this.appParent.dirty) await this.appParent.refresh();
+            return this.appParent.dynos;
+        })();
+    }
+    get treeItem() {
+        return (async () => {
+            this._treeItem.tooltip = pluralize(this.appParent.dynos.length ?? 0, "dyno");
+            this._treeItem.iconPath = new vscode.ThemeIcon("server-process", getDynoColor(this.appParent.state));
+            return this._treeItem;
+        })();
+    }
+    async refresh() {}
+}
+
+class Addon extends HDPItem {
+    constructor(parent, herokuAddonInfo) {
+        super(parent, herokuAddonInfo.name);
+        this.hID = herokuAddonInfo.id;
+        this.service = herokuAddonInfo.addon_service;
+        this.state = herokuAddonInfo.state;
+        this.appParent = parent;
+        this.configVars = herokuAddonInfo.config_vars;
+        this._treeItem.collapsibleState = vscode.TreeItemCollapsibleState.None;
+        this._treeItem.contextValue = "addon";
+    }
+    get treeItem() {
+        return (async () => {
+            this._treeItem.tooltip = this.service.name;
+            this._treeItem.iconPath = new vscode.ThemeIcon("extensions", getAddonColor(this.state));
+            return this._treeItem;
+        })();
+    }
+    async refresh() {
+        let addon = await Heroku.get(`/apps/${this.appParent.hID}/addons/${this.hID}`);
         this.state = addon.state;
-        this.appParent = parent.appParent;
-        this.setOptions({
-            tooltip: addon.addon_service.name,
-            collapsibleState: vscode.TreeItemCollapsibleState.None,
-            iconPath: new vscode.ThemeIcon("extensions", new vscode.ThemeColor(Addon.stateColorLookup(this.state)))
-        });
-    }
-
-    static stateColorLookup(addonState) {
-        return Dyno.stateColorLookup(dynoStates[addonStates.findIndex(s => s === addonState)]);
+        this.configVars = addon.config_vars;
+        return await super.refresh();
     }
 }
 
-class Dyno extends HDPTreeItem {
-    constructor(dyno, parent, opts) {
-        super(dyno.name, "dyno", parent, opts);
+class Dyno extends HDPItem {
+    constructor(parent, herokuDynoInfo) {
+        super(parent, herokuDynoInfo.name);
+        this.hID = herokuDynoInfo.id;
+        this.appParent = parent;
+        this.state = herokuDynoInfo.state;
+        this.command = herokuDynoInfo.command;
+        this.attachUrl = herokuDynoInfo.attach_url;
+        this._treeItem.collapsibleState = vscode.TreeItemCollapsibleState.None;
+        this._treeItem.contextValue = "dyno";
+    }
+    get treeItem() {
+        return (async () => {
+            this._treeItem.tooltip = "~$ " + this.command;
+            this._treeItem.iconPath = new vscode.ThemeIcon("server-process", getDynoColor(this.state));
+            return this._treeItem;
+        })();
+    }
+    async refresh() {
+        let dyno = await Heroku.get(`/apps/${this.appParent.hID}/dynos/${this.hID}`);
         this.state = dyno.state;
-        this.appParent = parent.appParent;
-        this.setOptions({
-            tooltip: "Command: " + dyno.command,
-            collapsibleState: vscode.TreeItemCollapsibleState.None,
-            iconPath: new vscode.ThemeIcon("server-process", new vscode.ThemeColor(Dyno.stateColorLookup(this.state))),
-        });
-    }
-
-    static stateColorLookup(dynoState) {
-        return "heroheroku.dynoState." + dynoState;
+        this.command = dyno.command;
+        return await super.refresh();
     }
 }
 
-function getBestState(statefulArr, states) {
-    states = states || dynoStates;
-    let state = 4;
-    for(let i = 0; i < statefulArr.length && state > 0; i++) {
-        const dyState = states.indexOf(statefulArr[i].state);
+const dynoStates = ["up", "starting", "idle", "crashed", "down"];
+const addonStates = ["provisioned", "provisioning", "", "", "deprovisioned"];
+function getBestState(states, stateOrder) {
+    if(!Array.isArray(states)) states = [states];
+    stateOrder = stateOrder || dynoStates;
+    let state = stateOrder.length - 1;
+    for(let i = 0; i < states.length && state > 0; i++) {
+        const dyState = stateOrder.indexOf(states[i]);
         if(dyState < state) state = dyState;
     }
-    return states[state];
+    return stateOrder[state];
+}
+function getBestAppState(states) {
+    return getBestState(states, dynoStates);
+}
+function getBestDynoState(states) {
+    return getBestState(states, dynoStates);
+}
+function getBestAddonState(states) {
+    return getBestState(states, addonStates);
+}
+function stateColorLookup(state) {
+    return "heroheroku.dynoState." + state;
+}
+function getDynoColor(state) {
+    return new vscode.ThemeColor(stateColorLookup(state));
+}
+function getAddonColor(state) {
+    return new vscode.ThemeColor(stateColorLookup(dynoStates[addonStates.indexOf(state)]));
 }
 
 function pluralize(count, noun) {
     return count + " " + noun + (count !== 1 ? "s" : "");
 }
-
-const treeItemGenerators = {
-    generateApp(app) {
-        return Promise.all([
-            Heroku.get("/apps/" + app.id + "/dynos"),
-            Heroku.get("/apps/" + app.id + "/addons"),
-        ]).then(([dynos, addons]) => {
-            app.dynos = dynos;
-            app.addons = addons;
-            return new App(app);
-        });
-    },
-    generatePipeline(pipeline, allApps) {
-        pipeline.stages = {};
-        return Heroku.get("/pipelines/" + pipeline.id + "/pipeline-couplings").then(couplings => {
-            couplings.forEach(coupling => {
-                let appIndex = allApps.findIndex(app => app.id === coupling.app.id);
-                if(appIndex === -1) return;
-                let a = allApps.splice(appIndex, 1)[0]; // returns an App object
-                pipeline.stages[coupling.stage] = pipeline.stages[coupling.stage] || []; // make sure we have an array
-                pipeline.stages[coupling.stage].push(a);
-            });
-
-            return new Pipeline(pipeline);
-        });
-    },
-};
+function correctCase(word) {
+    return word.substr(0, 1).toUpperCase() + word.substr(1);
+}
 
 module.exports = {
     HerokuTreeProvider,
-    HDPTreeItem,
-    GenericItem,
+    HDPItem,
     App,
-    Pipeline,
-    PipelineStage,
+    // Pipeline,
+    // PipelineStage,
     AddonBranch,
     DynoBranch,
     Addon,

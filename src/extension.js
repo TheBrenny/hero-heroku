@@ -18,7 +18,8 @@ function activate(context) {
 	let tdp = new HerokuTreeProvider();
 	let tv = vscode.window.createTreeView("hero-heroku", {
 		showCollapseAll: true,
-		treeDataProvider: tdp
+		treeDataProvider: tdp,
+		canSelectMany: false
 	});
 	tdp.setTreeView(tv);
 	// vscode.window.registerTreeDataProvider("hero-heroku", tdp);
