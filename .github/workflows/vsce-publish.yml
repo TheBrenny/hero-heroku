@@ -18,5 +18,9 @@ jobs:
           node-version: 16.x
       - name: Install Dependencies
         run: npm install
+      - name: Install VSCE
+        run: npm install -g vsce
       - name: Publish to VSCode Marketplace
-        run: npx vsce publish --pat ${{ secrets.VSCODE_PAT }}
+        run: |
+          vsce package
+          vsce publish --pat ${{ secrets.VSCODE_PAT }}
