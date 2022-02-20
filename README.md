@@ -4,6 +4,8 @@
 
 Hero Heroku is the (unofficial) Heroku counterpart to Microsoft's Azure Extension. The various Heroku extensions on the marketplace are just wrappers around the Heroku CLI/Wep Platform, which is where this extension shines! It attempts to be your Heroku Dashboard inside VSCode, by enabling you to manage your apps and their features without leaving the editor!
 
+![Hero Heroku gif](./res/hero-heroku.gif)
+
 ## Features
 
 - Visual indicators of Dyno/App runtime status.

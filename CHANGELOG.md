@@ -1,5 +1,8 @@
 # Change Log
 
+- v1.6.1
+  - Added a gif of some actions that Hero Heroku can do.
+  - Added Hero Heroku to Awesome VSCode.
 - v1.6.0
   - Refactored the Tree Items and Tree Data Provider, so everything should be a lot more smoother, and less complex.
   - Added a Github action to automatically publish the extension to VSCE and OVSX.
