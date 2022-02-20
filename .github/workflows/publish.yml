@@ -23,9 +23,9 @@ jobs:
         run: |
           vsce package --no-yarn --out "target.vsix"
       - name: Store Build Package
-        uses: actions/upload-artifact@v1
+        uses: actions/upload-artifact@v2
         with:
-          name: packageFile
+          name: target.vsix
           path: target.vsix
 
   vsce-publish:
@@ -40,12 +40,12 @@ jobs:
       - name: Install VSCE
         run: npm install -g vsce
       - name: Get Build Package
-        uses: actions/download-artifact@v1
+        uses: actions/download-artifact@v2
         with:
-          name: packageFile
+          name: target.vsix
       - name: Publish to VSCode Marketplace
         run: |
-          vsce publish --packagePath "target.visx" --pat ${{ secrets.VSCE_PAT }}
+          vsce publish --packagePath "target.vsix" --pat ${{ secrets.VSCE_PAT }}
 
   ovsx-publish:
     name: "Publish to Open VSX Marketplace"
@@ -59,9 +59,9 @@ jobs:
       - name: Install OVSX
         run: npm install -g ovsx
       - name: Get Build Package
-        uses: actions/download-artifact@v1
+        uses: actions/download-artifact@v2
         with:
-          name: packageFile
+          name: target.vsix
       - name: Publish to Open VSX Marketplace
         run: |
           ovsx publish --packagePath "target.vsix" --pat ${{ secrets.OVSX_PAT }}
