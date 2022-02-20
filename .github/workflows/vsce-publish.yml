@@ -1,5 +1,4 @@
-name: Publish to VSCode Marketplace
-
+name: Publish to Extension Marketplaces
 
 on:
   push:
@@ -8,18 +7,61 @@ on:
   workflow_dispatch: 
 
 jobs:
-  vsce-publish:
+  package:
+    name: "Package Extension"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
+      - uses: actions/setup-node@v2
+        with:
+          node-version: 16.x
+      - name: Install Dependencies
+        run: |
+          npm install
+          npm install -g vsce
+      - name: Package Extension
+        run: |
+          vsce package --no-yarn --out "target.vsix"
+      - name: Store Build Package
+        uses: actions/upload-artifact@v1
+        with:
+          name: packageFile
+          path: target.vsix
+
+  vsce-publish:
+    name: "Publish to VSCode Marketplace"
+    needs: package
+    runs-on: ubuntu-latest
+    steps:
       - name: Get NodeJS
         uses: actions/setup-node@v2
         with:
           node-version: 16.x
-      - name: Install Dependencies
-        run: npm install
       - name: Install VSCE
         run: npm install -g vsce
+      - name: Get Build Package
+        uses: actions/download-artifact@v1
+        with:
+          name: packageFile
       - name: Publish to VSCode Marketplace
         run: |
-          vsce publish --pat ${{ secrets.VSCE_PAT }}
+          vsce publish --packagePath "target.visx" --pat ${{ secrets.VSCE_PAT }}
+
+  ovsx-publish:
+    name: "Publish to Open VSX Marketplace"
+    needs: package
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get NodeJS
+        uses: actions/setup-node@v2
+        with:
+          node-version: 16.x
+      - name: Install OVSX
+        run: npm install -g ovsx
+      - name: Get Build Package
+        uses: actions/download-artifact@v1
+        with:
+          name: packageFile
+      - name: Publish to Open VSX Marketplace
+        run: |
+          ovsx publish --packagePath "target.vsix" --pat ${{ secrets.OVSX_PAT }}
