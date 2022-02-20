@@ -1,5 +1,6 @@
 {
 	"name": "hero-heroku",
+	"license": "GPL-3.0-or-later",
 	"displayName": "Hero Heroku",
 	"description": "A powerful Heroku dashboard from within VSCode!",
 	"publisher": "JustBrenny",
