@@ -5,15 +5,16 @@ on:
   push:
     tags:
       - "*"
-  workflow_dispatch:
+  workflow_dispatch: 
 
 jobs:
   vsce-publish:
     runs-on: ubuntu-latest
     steps:
-      - name: Get NodeJS
       - uses: actions/checkout@v2
-      - uses: actions/setup-node@v2
+      - name: Get NodeJS
+        uses: actions/setup-node@v2
         with:
           node-version: 16.x
-      - run: npx vsce publish
+      - name: Publish to VSCode Marketplace
+        run: npx vsce publish
