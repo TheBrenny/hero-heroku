@@ -23,4 +23,5 @@ jobs:
       - name: Publish to VSCode Marketplace
         run: |
           vsce package
+          vsce logout
           vsce publish --pat ${{ secrets.VSCODE_PAT }}
