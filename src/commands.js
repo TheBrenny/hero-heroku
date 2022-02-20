@@ -8,7 +8,8 @@ const exec = promisify(childProcess.exec);
 const logger = require("./logger");
 const {
     Dyno,
-    HerokuTreeProvider
+    HerokuTreeProvider,
+    DynoBranch
 } = require("./herokuDataProvider");
 const Rendezvous = require("rendezvous-protocol");
 const https = require("https");
@@ -61,7 +62,7 @@ function refreshDirtyTreeView(tdp) {
     return dirtyElements.length;
 }
 function refreshBranch(tdp, app) {
-    tdp = HerokuTreeProvider.instance;
+    tdp = tdp ?? HerokuTreeProvider.instance;
     logger("Refreshing TDP branch");
     return tdp.refresh(app);
 }
@@ -79,7 +80,7 @@ function createDyno(tdp, app) {
             name: "HH-UserChoice",
             message: "hero-heroku: User canceled action."
         };
-        return Heroku.post("/apps/" + app.name + "/dynos", {
+        return Heroku.post(`/apps/${app.hID}/dynos`, {
             command: cmd,
             attach: true,
             type: "run",
@@ -102,14 +103,14 @@ function createDyno(tdp, app) {
 
 function openAppUrl(tdp, app) {
     logger("Opening external app url");
-    vscode.env.openExternal(app.web_url)
+    vscode.env.openExternal(app.webUrl)
         .then(success => {
             if(!success) throw {
                 name: "HH-UserChoice",
                 message: "hero-heroku: User didn't want to open app."
             };
         })
-        .then(() => pingAndRefresh(tdp, app.web_url, app))
+        .then(() => pingAndRefresh(tdp, app.webUrl, app))
         .catch(error => {
             if(error.name === "HH-UserChoice") logger(error.message);
             else throw error;
@@ -124,7 +125,7 @@ function openAppDashboard(_tdp, app) {
 function getConfigVars(tdp, app) {
     logger("Getting config vars");
     let starterVars = {};
-    Heroku.get(`/apps/${app.name}/config-vars`)
+    Heroku.get(`/apps/${app.hID}/config-vars`)
         .then(async (cfg) => {
             starterVars = cfg;
             let entries = Object.entries(cfg);
@@ -155,18 +156,18 @@ function updateConfigVars(tdp, app, vars) {
         vars = vars.split("\n").map(line => line.split("="));
         vars = vars.reduce((acc, [key, value]) => (acc[key] = value, acc), {});
     }
-    return Heroku.patch(`/apps/${app.name}/config-vars`, vars)
+    return Heroku.patch(`/apps/${app.hID}/config-vars`, vars)
         .then(() => {
             return showInfoMessage("Config Vars updated!");
         }).then(() => {
-            return pingAndRefresh(tdp, app.web_url, app);
+            return pingAndRefresh(tdp, app.webUrl, app);
         }).catch((e) => {
             return showErrorMessage("update the Config Vars", e);
         });
 }
 
 async function deployViaGit(tdp, app) {
-    const gitUrl = new URL(app.git_url);
+    const gitUrl = new URL(app.gitUrl);
     gitUrl.username = "heroheroku"; // My testing indicated that the username doesn't matter...
     gitUrl.password = Heroku.getApiKey();
 
@@ -219,7 +220,7 @@ function scaleDyno(tdp, dynoBranch) {
     let remainder = 0;
 
     logger("Scaling dyno");
-    Heroku.get("/apps/" + dynoBranch.parent.name + "/formation")
+    Heroku.get(`/apps/${dynoBranch.parent.hID}/formation`)
         .then(fList => fList.map(f => {
             remainder += f.quantity;
             return {
@@ -268,7 +269,7 @@ function scaleDyno(tdp, dynoBranch) {
             };
 
             formQty = qty;
-            return Heroku.patch(`/apps/${dynoBranch.parent.name}/formation/${formID}`, {
+            return Heroku.patch(`/apps/${dynoBranch.parent.hID}/formation/${formID}`, {
                 quantity: formQty
             });
         }).then(() => {
@@ -281,14 +282,17 @@ function scaleDyno(tdp, dynoBranch) {
 }
 
 function restartDyno(tdp, dyno) {
-    let endpoint = `/apps/${dyno.appParent.name}/dynos/${dyno.name}`;
+    let endpoint = `/apps/${dyno.appParent.hID}/dynos`;
+    if(dyno instanceof Dyno) {
+        endpoint += `/${dyno.hID}`;
+    }
     logger("Restarting dyno");
     Heroku.delete(endpoint).then(() => refreshBranch(tdp, dyno.parent));
 }
 
 function stopDyno(tdp, dyno) {
     logger("Stopping dyno");
-    Heroku.post(`/apps/${dyno.appParent.name}/dynos/${dyno.name}/actions/stop`).then((d) => {
+    Heroku.post(`/apps/${dyno.appParent.hID}/dynos/${dyno.hID}/actions/stop`).then((d) => {
         logger(d);
         refreshBranch(tdp, dyno.appParent);
     }).catch(err => {
@@ -299,11 +303,11 @@ function stopDyno(tdp, dyno) {
 function logDyno(tdp, dyno) {
     logger("Logging dyno");
     // MAYBE: Colour the output of the log file and allow it to be configurable with RegExs?
-    Heroku.post(`/apps/${dyno.appParent.name}/log-sessions`, {
+    Heroku.post(`/apps/${dyno.appParent.hID}/log-sessions`, {
         lines: 30, // TODO: Change this to be configurable
         tail: true,
         source: "app",
-        dyno: dyno.name
+        dyno: dyno.hID
     }).then(async (data) => {
         let logUrl = data.logplex_url;
         let logStream = await fetch(logUrl);
