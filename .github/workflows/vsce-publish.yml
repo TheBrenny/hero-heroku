@@ -1,9 +1,11 @@
 name: Publish to VSCode Marketplace
 
+
 on:
   push:
     tags:
       - "*"
+  workflow_dispatch:
 
 jobs:
   vsce-publish:
