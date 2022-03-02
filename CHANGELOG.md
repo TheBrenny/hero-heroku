@@ -1,5 +1,8 @@
 # Change Log
 
+- v1.7.0
+  - Added ability to add apps
+  - Also `require`d the `mini-word-smith` package to generate app names
 - v1.6.1
   - Added a gif of some actions that Hero Heroku can do.
   - Added Hero Heroku to Awesome VSCode.

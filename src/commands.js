@@ -6,6 +6,7 @@ const fetch = require("node-fetch");
 const childProcess = require('child_process');
 const exec = promisify(childProcess.exec);
 const logger = require("./logger");
+const WordBuilder = require("mini-word-smith");
 const {
     Dyno,
     HerokuTreeProvider,
@@ -47,10 +48,62 @@ function authenticate() {
         });
 }
 
-function refreshTreeView(tdp, app) {
+function refreshTreeView(tdp, app, clear = false) {
     tdp = tdp ?? HerokuTreeProvider.instance;
     logger("Refreshing TDP branch");
+    if(clear) tdp.clearChildren();
     return tdp.refresh(app);
+}
+
+async function createApp(tdp) {
+    logger("Creating app");
+    let name, stack, region;
+    try { // Get app details
+        name = await vscode.window.showInputBox({
+            ignoreFocusOut: true,
+            password: false,
+            placeHolder: "Let Heroku decide...",
+            value: new WordBuilder("an").toString("-").toLocaleLowerCase(),
+            title: "App Name",
+            prompt: "Enter the name of the new app"
+        });
+        stack = await vscode.window.showInputBox({
+            ignoreFocusOut: true,
+            password: false,
+            placeHolder: "Let Heroku decide...",
+            value: "",
+            title: "App Stack",
+            prompt: "Enter the stack for the new app"
+        });
+        region = await vscode.window.showInputBox({
+            ignoreFocusOut: true,
+            password: false,
+            placeHolder: "Let Heroku decide...",
+            value: "",
+            title: "App Region",
+            prompt: "Enter the region for the new app"
+        });
+    } catch(err) {
+        if(err.name === "HH-UserChoice") logger(err.message);
+        else throw err;
+    }
+
+    let payload = {};
+    if(name) payload.name = name;
+    if(stack) payload.stack = stack;
+    if(region) payload.region = region;
+
+    return Heroku.post("/apps", payload).then(async (app) => {
+        logger("App created: " + app.name);
+        // tdp.clearChildren();
+        await tdp.addApp(app);
+        refreshTreeView(tdp, null); // refresh entire tree
+        return app;
+    }).catch(async (err) => {
+        logger("App creation failed: " + err.body.message);
+        let tryAgain = await showErrorMessage(null, {wholeMessage: err.body.message}, "Try again", "Dismiss");
+        if(tryAgain === "Try again") setImmediate(createApp.bind(this, tdp));
+    });
 }
 
 function createDyno(tdp, app) {
@@ -343,9 +396,9 @@ function pingAndRefresh(tdp, url, tdpElement) {
 function showInfoMessage(message, ...actions) {
     return vscode.window.showInformationMessage(message, ...actions);
 }
-function showErrorMessage(message, error, ...actions) {
+function showErrorMessage(hhAction, error, ...actions) {
     let readE = `${error?.name ?? "Error"} ${error?.code ?? error?.statusCode ?? "(?)"}\n${error?.message || "<no message>"}`;
-    return vscode.window.showErrorMessage("Hero Heroku encountered an error while trying to " + message + ":\n" + readE, ...actions);
+    return vscode.window.showErrorMessage(error?.wholeMessage ?? ("Hero Heroku encountered an error while trying to " + hhAction + ":\n" + readE), ...actions);
 }
 
 const commands = {
@@ -354,6 +407,7 @@ const commands = {
     showInfoMessage,
     showErrorMessage,
     app: {
+        create: createApp,
         openUrl: openAppUrl,
         openDashboard: openAppDashboard,
         getConfigVars: getConfigVars,

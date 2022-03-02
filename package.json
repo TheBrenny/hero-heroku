@@ -130,6 +130,17 @@
 				"category": "Hero Heroku"
 			},
 			{
+				"command": "hero-heroku.reloadAppTree",
+				"title": "Reload App Tree",
+				"icon": "$(refresh)",
+				"category": "Hero Heroku"
+			},
+			{
+				"command": "hero-heroku.app.create",
+				"title": "Create App",
+				"icon": "$(add)"
+			},
+			{
 				"command": "hero-heroku.app.openUrl",
 				"title": "Open App",
 				"icon": "$(link-external)"
@@ -187,7 +198,7 @@
 			"commandPalette": [],
 			"view/title": [
 				{
-					"command": "hero-heroku.refreshAppTree",
+					"command": "hero-heroku.reloadAppTree",
 					"when": "view == hero-heroku",
 					"group": "navigation"
 				}
@@ -268,6 +279,7 @@
 	},
 	"dependencies": {
 		"heroku-client": "^3.1.0",
+		"mini-word-smith": "^1.0.2",
 		"node-fetch": "^2.6.7",
 		"rendezvous-protocol": "^1.0.0",
 		"which": "^2.0.2"

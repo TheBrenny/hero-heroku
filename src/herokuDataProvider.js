@@ -14,7 +14,15 @@ class HerokuTreeProvider {
         this.onDidChangeTreeData = this._changeEvent.event;
         this.rootNode = {
             _children: [],
-            get children() {return this._children;},
+            _createApp: new CommandItem(this, "Create App", "hero-heroku.app.create", [], {iconPath: "add"}),
+            // _createPipeline: new CommandItem(this, "Create Pipeline", "hero-heroku.pipeline.create", [], {iconPath: "add"}),
+            get children() {
+                return [
+                    ...this._children,
+                    this._createApp,
+                    // this._createPipeline
+                ];
+            },
             allApps: [],
         };
     }
@@ -31,8 +39,8 @@ class HerokuTreeProvider {
         logger("Getting children of: " + element?.name);
 
         if(!element) {
-            if(this.rootNode.children.length > 0) return this.rootNode.children;
-            return await this.getRootItems();
+            if(this.rootNode._children.length == 0) await this.generateRootItems();
+            return this.rootNode.children;
         }
         return element.children;
     }
@@ -43,7 +51,7 @@ class HerokuTreeProvider {
             element.makeDirty();
             await element.refresh();
         } else {
-            await Promise.all(this.rootNode.children.map(child => {
+            await Promise.all(this.rootNode._children.map(child => {
                 child.makeDirty();
                 return child.refresh();
             }));
@@ -58,7 +66,11 @@ class HerokuTreeProvider {
         if(event.selection[0].onSelect) return event.selection[0].onSelect();
     }
 
-    async getRootItems() {
+    clearChildren() {
+        this.rootNode._children.splice(0, this.rootNode._children.length);
+    }
+
+    async generateRootItems() {
         let apps = await Heroku.get(`/apps`);
         apps = apps.map(appInfo => new App(null, appInfo));
         this.rootNode.allApps = apps.slice();
@@ -68,12 +80,19 @@ class HerokuTreeProvider {
         await Promise.all(this.rootNode.allApps.map(app => app.refresh()));
         await Promise.all(pipelines.map(pipeline => pipeline.refresh(apps)));
 
-        this.rootNode.children.splice(0, this.rootNode.children.length);
-        this.rootNode.children.push(...[
+        this.rootNode._children.splice(0, this.rootNode._children.length);
+        this.rootNode._children.push(...[
             ...apps,
             ...pipelines
         ].sort((a, b) => a.name.localeCompare(b.name)));
-        return this.rootNode.children;
+        return this.rootNode._children;
+    }
+
+    async addApp(herokuAppInfo) {
+        let app = new App(null, herokuAppInfo);
+        this.rootNode._children.push(app);
+        await app.refresh();
+        // We don't refresh the entire tree here because what if we're adding multiple apps?
     }
 
     static get instance() {
@@ -456,6 +475,28 @@ class Dyno extends HDPItem {
         this.command = dyno.command;
         return await super.refresh();
     }
+}
+
+class CommandItem extends Parentable {
+    constructor(parent, name, vsCommand, args, opts) {
+        super(parent);
+        this.name = parent.name + " Command";
+        this.command = {
+            command: vsCommand,
+            arguments: args
+        };
+        this._treeItem = new vscode.TreeItem(name, opts?.collapsibleState ?? vscode.TreeItemCollapsibleState.None);
+        this._treeItem.contextValue = "addonBranch";
+        this._treeItem.command = this.command;
+        this._treeItem.tooltip = vsCommand;
+        this._treeItem.iconPath = new vscode.ThemeIcon(opts?.iconPath ?? "empty-window", opts?.iconColor);
+        this.appParent = parent;
+    }
+    get children() {return null;}
+    get treeItem() {
+        return this._treeItem;
+    }
+    async refresh() {}
 }
 
 const stateLists = {

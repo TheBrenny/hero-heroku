@@ -3,11 +3,16 @@ const Heroku = require("./heroku");
 const HerokuTreeProvider = require("./herokuDataProvider").HerokuTreeProvider;
 const commands = require("./commands");
 const logger = require("./logger");
+const WordBuilder = require("mini-word-smith");
 
 let tdpRefreshInterval;
 
-function activate(context) {
+async function activate(context) {
 	logger("Activating...");
+
+	logger("Generating word lists");
+	if(WordBuilder.adjectives.length === 1) await WordBuilder.buildScript.downloadWordLists(150, 150);
+	WordBuilder.reloadWordlists();
 
 	logger("API Key set? " + (Heroku.getApiKey() !== "").toString());
 	if(Heroku.getApiKey() !== "") {
@@ -47,7 +52,9 @@ function activate(context) {
 	// Overall
 	context.subscriptions.push(vscode.commands.registerCommand("hero-heroku.authenticate", commands.authenticate.bind(this)));
 	context.subscriptions.push(vscode.commands.registerCommand("hero-heroku.refreshAppTree", commands.refreshTreeView.bind(this, tdp)));
+	context.subscriptions.push(vscode.commands.registerCommand("hero-heroku.reloadAppTree", commands.refreshTreeView.bind(this, tdp, null, true)));
 	// App
+	context.subscriptions.push(vscode.commands.registerCommand("hero-heroku.app.create", commands.app.create.bind(this, tdp)));
 	context.subscriptions.push(vscode.commands.registerCommand("hero-heroku.app.openUrl", commands.app.openUrl.bind(this, tdp)));
 	context.subscriptions.push(vscode.commands.registerCommand("hero-heroku.app.openDashboard", commands.app.openDashboard.bind(this, tdp)));
 	context.subscriptions.push(vscode.commands.registerCommand("hero-heroku.app.configVars", commands.app.getConfigVars.bind(this, tdp)));
