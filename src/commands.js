@@ -183,18 +183,15 @@ async function tryUpdateConfigVars(tdp, app) {
     if(app === undefined) {
         app = await vscode.window.showInputBox({
             prompt: "Enter the name of the app",
-        }).then(appName => HerokuTreeProvider.instance.getTreeItem(appName));
+        }).then(appName => HerokuTreeProvider.instance.getAppByName(appName));
     }
     let vars = vscode.window.activeTextEditor.document.getText();
+    vars = vars.split("\n").map(line => line.split("=")).reduce((acc, [key, value]) => (acc[key] = value, acc), {});
     return updateConfigVars(tdp, app, vars);
 }
 function updateConfigVars(tdp, app, vars) {
     logger("Updating config vars");
-    if(vars instanceof vscode.TextDocument) {
-        vars = vars.getText();
-        vars = vars.split("\n").map(line => line.split("="));
-        vars = vars.reduce((acc, [key, value]) => (acc[key] = value, acc), {});
-    }
+    if(typeof vars !== "object") throw new Error("Config Vars passed must be an object!");
     return Heroku.patch(`/apps/${app.hID}/config-vars`, vars)
         .then(() => {
             return showInfoMessage("Config Vars updated!");

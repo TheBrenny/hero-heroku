@@ -31,10 +31,14 @@ class HerokuTreeProvider {
     }
 
     async getTreeItem(element) { // returns the visual representation of the element
-        logger("Getting tree item: " + element?.name);
+        logger("Getting tree item: " + element?.name ?? element ?? "(nothing given)");
         return element?.treeItem;
     }
-
+    getAppByName(name) {
+        logger("Getting app item: " + name ?? "(nothing given)");
+        if(!name) return null;
+        return this.rootNode.allApps.find(app => app.name == name);
+    }
     async getChildren(element) {
         logger("Getting children of: " + element?.name);
 
