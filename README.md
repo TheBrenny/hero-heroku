@@ -1,4 +1,4 @@
-<img style="margin: auto;display:block;" src="./res/hero-heroku-banner.png"/>
+![Hero Banner](./res/hero-heroku-banner.png)
 
 # Hero Heroku
 
