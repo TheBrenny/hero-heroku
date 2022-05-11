@@ -1,5 +1,10 @@
 # Change Log
 
+- v1.7.2
+  - Resets API Key
+    - Heroku had a data breach recently, and this patch deletes the old key and prompts for a new key.
+- v1.7.1
+  - Fixed updating Config Variables
 - v1.7.0
   - Added ability to add apps
   - Also `require`d the `mini-word-smith` package to generate app names
