@@ -25,27 +25,48 @@ const {Stream, promises} = require('stream');
 
 function authenticate() {
     logger("Creating authorization");
-    return exec("heroku authorizations:create -S -d \"Hero Heroku VSCode Extension\"")
-        .then((std) => {
-            const stderr = std.stderr;
-            const stdout = std.stdout;
-            if(stderr) throw {
-                name: "HerokuCLI",
-                message: stderr.trim()
-            };
-            return stdout.trim();
-        }).then(token => {
-            logger("Authorization token recieved");
-            let config = vscode.workspace.getConfiguration("hero-heroku");
-            return config.update("apiKey", token, true);
-        }).then(() => {
-            logger("Restarting Hero Heroku");
-            Heroku.destroy();
-            new Heroku();
-            vscode.commands.executeCommand("hero-heroku.refreshAppTree");
-        }).catch((err) => {
-            throw err;
-        });
+
+    const herokuAuthCmd = "heroku authorizations:create -S -d \"Hero Heroku VSCode Extension\"";
+
+    const controller = new AbortController();
+    let passed = false;
+    setTimeout(() => !passed && controller.abort(), 150);
+
+    // Wrapped in a promise.resolve because we want to resolve the exec and the abort onto the next "then"
+    return Promise.resolve(exec(herokuAuthCmd, {
+        signal: controller.signal
+    }).catch((err) => {
+        if(err.code === "ABORT_ERR") return {
+            stdout: "",
+            stderr: "Request timed out past 15 seconds."
+        };
+        else throw err;
+    })).then((std) => {
+        const stderr = std.stderr;
+        const stdout = std.stdout;
+        if(stderr) throw {
+            name: "HerokuCLI",
+            message: stderr.trim()
+        };
+        return stdout.trim();
+    }).then(token => {
+        logger("Authorization token recieved");
+        return vscode.workspace.getConfiguration("hero-heroku").update("apiKey", token, vscode.ConfigurationTarget.Global);
+    }).then(() => {
+        logger("Restarting Hero Heroku");
+        Heroku.destroy();
+        new Heroku();
+        vscode.commands.executeCommand("hero-heroku.refreshAppTree");
+    }).catch((err) => {
+        return showErrorMessage("authorize with Heroku", err, "Run in Terminal")
+    }).then((action) => {
+        if(action === "Run in Terminal") {
+            let term = vscode.window.createTerminal("Hero-Heroku Authorization");
+            term.show();
+            term.sendText(herokuAuthCmd);
+            vscode.commands.executeCommand("workbench.action.openSettings", "hero-heroku.apiKey");
+        }
+    });
 }
 
 function refreshTreeView(tdp, app, clear = false) {
@@ -394,7 +415,7 @@ function showInfoMessage(message, ...actions) {
     return vscode.window.showInformationMessage(message, ...actions);
 }
 function showErrorMessage(hhAction, error, ...actions) {
-    let readE = `${error?.name ?? "Error"} ${error?.code ?? error?.statusCode ?? "(?)"}\n${error?.message || "<no message>"}`;
+    let readE = `${error?.name ?? "Error"} ${error?.code ?? error?.statusCode ?? ""}\n${error?.message || "<no message>"}`;
     return vscode.window.showErrorMessage(error?.wholeMessage ?? ("Hero Heroku encountered an error while trying to " + hhAction + ":\n" + readE), ...actions);
 }
 
@@ -419,6 +440,8 @@ const commands = {
         stop: stopDyno,
         logs: logDyno,
     },
+    showInfoMessage,
+    showErrorMessage,
 };
 
 module.exports = commands;

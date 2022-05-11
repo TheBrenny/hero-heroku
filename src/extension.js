@@ -14,8 +14,18 @@ async function activate(context) {
 	if(WordBuilder.adjectives.length === 1) await WordBuilder.buildScript.downloadWordLists(150, 150);
 	WordBuilder.reloadWordlists();
 
-	logger("API Key set? " + (Heroku.getApiKey() !== "").toString());
-	if(Heroku.getApiKey() !== "") {
+	let keyUpdated = await Heroku.hasUpdatedKey(context);
+	if(!keyUpdated) {
+		logger("Clearing old API Key");
+		await Heroku.hasUpdatedKey(context, true).then(Heroku.clearApiKey);
+		let updateMessage = "If you used Hero Heroku before 10 May 2022, your API Key has been cleared due to Heroku revoking all API Keys. Please update your API Key.";
+		let updateAction = "Update API Key";
+		let skip = "Do it manually";
+		commands.showInfoMessage(updateMessage, updateAction, skip).then((action) => action === updateAction ? commands.authenticate() : null);
+	}
+
+	logger("API Key set? " + (Heroku.hasApiKey()).toString());
+	if(Heroku.hasApiKey()) {
 		new Heroku();
 	}
 
@@ -34,13 +44,13 @@ async function activate(context) {
 		if(e.affectsConfiguration("hero-heroku.apiCalls")) {
 			logger("apiCalls config changed");
 			destroyRefreshInterval();
-			if(Heroku.getApiKey() !== "") createRefreshInterval();
+			if(Heroku.hasApiKey()) createRefreshInterval();
 		}
 		if(e.affectsConfiguration("hero-heroku.apiKey")) {
 			logger("apiKey config changed");
 			destroyRefreshInterval();
 			Heroku.destroy();
-			if(Heroku.getApiKey() !== "") {
+			if(Heroku.hasApiKey()) {
 				new Heroku();
 				commands.refreshTreeView();
 				createRefreshInterval();

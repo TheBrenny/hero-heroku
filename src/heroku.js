@@ -6,7 +6,7 @@ class Heroku {
     constructor() {
         logger("Constructing `Heroku` class");
         if(Heroku.instance === undefined) Heroku.instance = this;
-        let apiKey = vscode.workspace.getConfiguration("hero-heroku").get("apiKey");
+        let apiKey = Heroku.getApiKey();
         this.client = new HerokuClient({
             token: apiKey
         });
@@ -20,8 +20,24 @@ class Heroku {
         Heroku.instance = undefined;
     }
 
+    static hasApiKey() {
+        return vscode.workspace.getConfiguration("hero-heroku").get("apiKey", "") !== "";
+    }
     static getApiKey() {
-        return vscode.workspace.getConfiguration("hero-heroku").get("apiKey");
+        return vscode.workspace.getConfiguration("hero-heroku").get("apiKey", "");
+    }
+    static clearApiKey() {
+        return new Promise(async (resolve, _reject) => {
+            let global = await vscode.workspace.getConfiguration("hero-heroku").update("apiKey", undefined, vscode.ConfigurationTarget.Global).then(() => true).catch(() => false);
+            let workspace = await vscode.workspace.getConfiguration("hero-heroku").update("apiKey", undefined, vscode.ConfigurationTarget.Workspace).then(() => true).catch(() => false);
+            let wsFolder = await vscode.workspace.getConfiguration("hero-heroku").update("apiKey", undefined, vscode.ConfigurationTarget.WorkspaceFolder).then(() => true).catch(() => false);
+
+            resolve([global, workspace, wsFolder]);
+        });
+    }
+    static async hasUpdatedKey(context, value) {
+        if(value !== undefined) await context.globalState.update("hero-heroku-key-updated", value)
+        return context.globalState.get("hero-heroku-key-updated", false)
     }
 
     static get(target) {

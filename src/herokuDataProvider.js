@@ -40,7 +40,9 @@ class HerokuTreeProvider {
         return this.rootNode.allApps.find(app => app.name == name);
     }
     async getChildren(element) {
-        logger("Getting children of: " + element?.name);
+        if(!(await Heroku.hasApiKey())) return;
+
+        logger("Getting children of: " + (element?.name ?? "root"));
 
         if(!element) {
             if(this.rootNode._children.length == 0) await this.generateRootItems();
